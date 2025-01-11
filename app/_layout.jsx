@@ -53,7 +53,7 @@ export default function RootLayout() {
           headerShown: false,
         }}
       />
-       <Stack.Screen
+      <Stack.Screen
         name="(main)/RoadmapPage"
         options={{
           headerShown: false,
@@ -61,6 +61,12 @@ export default function RootLayout() {
       />
       <Stack.Screen
         name="(main)/StudyBuddyPage"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="(main)/NotificationPage"
         options={{
           headerShown: false,
         }}

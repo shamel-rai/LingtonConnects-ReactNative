@@ -231,7 +231,7 @@ const HomePage = () => {
 
                 <TouchableOpacity
                     style={[styles.navItem, activeTab === 'notifications' && styles.activeNavItem]}
-                    onPress={() => setActiveTab('notifications')}
+                    onPress={() => router.push('/NotificationPage')}
                 >
                     <View style={styles.notificationContainer}>
                         <Feather name="bell" size={24} color="white" />
