@@ -71,6 +71,12 @@ export default function RootLayout() {
           headerShown: false,
         }}
       />
+        <Stack.Screen
+        name="(main)/PostPage"
+        options={{
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 }

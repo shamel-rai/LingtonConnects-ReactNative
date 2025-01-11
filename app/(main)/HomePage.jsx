@@ -221,7 +221,7 @@ const HomePage = () => {
 
                 <TouchableOpacity
                     style={[styles.navItem, activeTab === 'create' && styles.activeNavItem]}
-                    onPress={() => setActiveTab('create')}
+                    onPress={() => router.push('/PostPage')}
                 >
                     <View style={styles.createPostButton}>
                         <Feather name="plus" size={24} color="#4A00E0" />
