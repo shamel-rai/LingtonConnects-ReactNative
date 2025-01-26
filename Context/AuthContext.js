@@ -7,8 +7,8 @@ export const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState(null);
 
+  // Check token on app load
   useEffect(() => {
     const checkAuthentication = async () => {
       try {
@@ -82,7 +82,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, login, logout, loading, userId }}
+      value={{ isAuthenticated, setIsAuthenticated, logout, loading }}
     >
       {children}
     </AuthContext.Provider>

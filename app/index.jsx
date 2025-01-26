@@ -1,36 +1,25 @@
 import React, { useContext } from "react";
-import { ActivityIndicator, View, StyleSheet } from "react-native";
 import { AuthProvider, AuthContext } from "../Context/AuthContext";
-import WelcomePage from "./WelcomePage"; // The unauthenticated screen
-import Homepage from "./(main)/HomePage"; // The authenticated screen
+import Welcome from "./WelcomePage";
+import Homepage from "./(main)/HomePage";
+import { ActivityIndicator } from "react-native";
 
 const AppContent = () => {
   const { isAuthenticated, loading } = useContext(AuthContext);
 
   if (loading) {
-    return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#4A00E0" />
-      </View>
-    );
+    // adds loading while checking  for authentication
+    return <ActivityIndicator size="large" color="#0000ff" />;
   }
 
-  return isAuthenticated ? <Homepage /> : <WelcomePage />;
+  //if not authenticated it will show welcome page else homepage
+  return isAuthenticated ? <Homepage /> : <Welcome />;
 };
 
-export default function App() {
+export default function index() {
   return (
     <AuthProvider>
       <AppContent />
     </AuthProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  loaderContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#fff",
-  },
-});
