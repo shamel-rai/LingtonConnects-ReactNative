@@ -68,7 +68,7 @@ const SignupPage = () => {
     if (!validateInputs()) return;
 
     setIsLoading(true);
-    const signupAPI = "http://192.168.101.7:3001/api/v1/signup";
+    const signupAPI = "http://192.168.101.5:3001/api/v1/signup";
     try {
       const response = await axios.post(
         "http://192.168.101.5:3001/api/v1/signup",

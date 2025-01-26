@@ -6,17 +6,16 @@ export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userId, setUserId] = useState(null); // Add state for userId
   const [loading, setLoading] = useState(true);
 
   // Check token on app load
   useEffect(() => {
     const checkAuthentication = async () => {
       try {
-        // Retrieve token and userId from SecureStore
         const token = await SecureStore.getItemAsync("authToken");
         const storedUserId = await SecureStore.getItemAsync("userId");
 
-        // Only check token with backend if token and userId exist
         if (token && storedUserId) {
           const response = await axios.get(
             "http://192.168.101.5:3001/api/v1/homepage",
@@ -26,40 +25,34 @@ export const AuthProvider = ({ children }) => {
           );
 
           if (response.status === 200) {
-            // If the token is valid, set authentication state
             setIsAuthenticated(true);
-            setUserId(storedUserId);
+            setUserId(storedUserId); // Set userId from SecureStore
           } else {
-            // If the response is not OK, consider the user logged out
-            await logout();
+            await logout(); // Clear tokens if invalid
           }
         }
       } catch (error) {
         console.log("Authentication check failed:", error.message);
-        await logout(); // Clear invalid tokens if authentication fails
+        await logout(); // Clear invalid tokens
       } finally {
-        // Ensure loading is set to false after authentication check
         setLoading(false);
       }
     };
 
-    // Call authentication check once at app startup
     checkAuthentication();
   }, []);
 
   const login = async (token, userId) => {
     try {
       if (!token || !userId) {
-        throw new Error("Invalid token or userID");
+        throw new Error("Invalid token or userId");
       }
 
-      // Store token and userId securely
       await SecureStore.setItemAsync("authToken", token);
       await SecureStore.setItemAsync("userId", userId);
 
-      // Update authentication state
       setIsAuthenticated(true);
-      setUserId(userId);
+      setUserId(userId); // Set userId on login
     } catch (error) {
       console.error("Login function Error: ", error.message);
       throw error;
@@ -68,13 +61,11 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      // Remove stored authentication data
       await SecureStore.deleteItemAsync("authToken");
       await SecureStore.deleteItemAsync("userId");
 
-      // Reset authentication state
       setIsAuthenticated(false);
-      setUserId(null);
+      setUserId(null); // Clear userId on logout
     } catch (error) {
       console.error("Logout function Error: ", error.message);
     }
@@ -82,7 +73,14 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, setIsAuthenticated, logout, loading }}
+      value={{
+        isAuthenticated,
+        userId,
+        setIsAuthenticated,
+        login,
+        logout,
+        loading,
+      }}
     >
       {children}
     </AuthContext.Provider>

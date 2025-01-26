@@ -49,7 +49,7 @@ const LoginPage = () => {
     setIsLoading(true);
     try {
       const response = await axios.post(
-        "http://192.168.101.7:3001/api/v1/login",
+        "http://192.168.101.5:3001/api/v1/login",
         {
           username,
           password,
@@ -57,7 +57,6 @@ const LoginPage = () => {
       );
 
       if (response.status === 200) {
-<<<<<<< HEAD
         const { token, user } = response.data; // Extract token and user data from the response
 
         // Store token securely (only accessToken for now)
@@ -66,13 +65,6 @@ const LoginPage = () => {
 
         Alert.alert("Login Successful", `Welcome back, ${user.username}!`);
         router.replace("/(main)/HomePage"); // Navigate to the homepage
-=======
-        const { token } = response.data;
-        console.log("Frontend Token: ", token);
-        await SecureStore.setItemAsync("authToken", token);
-        Alert.alert("Login Successful", "Welcome back!");
-        router.replace("/(main)/HomePage");
->>>>>>> parent of 8085fd2 (Updating the Authentication)
       }
     } catch (error) {
       const errorMessage =
@@ -83,20 +75,7 @@ const LoginPage = () => {
     }
   };
 
-  const validateToken = async () => {
-    try {
-        const {token} = await SecureStore.getItemAsync('authToken'); 
-        if(!token) return false; 
 
-        const response = await axios.get('http://192.168.101.7:3001/api/v1/homepage',{
-            headers: {Authorization: `Bearer ${token}`}
-        })
-        return response.status ===200; 
-    } catch (error) {
-        console.log('Token validation failed:', error);
-        return false;
-    }
-  };
 
   return (
     <SafeAreaView style={styles.container}>
