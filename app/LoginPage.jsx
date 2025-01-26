@@ -59,8 +59,9 @@ const LoginPage = () => {
       if (response.status === 200) {
         const { token, user } = response.data; // Extract token and user data from the response
 
-        const { login } = useContext(AuthContext); // Access the AuthContext
-        await login(token, user.id); // Update AuthContext with token and userId
+        // Store token securely (only accessToken for now)
+        await SecureStore.setItemAsync("authToken", token);
+        await SecureStore.setItemAsync("userId", user.id);
 
         Alert.alert("Login Successful", `Welcome back, ${user.username}!`);
         router.replace("/(main)/HomePage"); // Navigate to the homepage

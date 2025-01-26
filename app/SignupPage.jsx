@@ -71,7 +71,7 @@ const SignupPage = () => {
 
     try {
       const response = await axios.post(
-        "http://192.168.101.4:3001/api/v1/signup",
+        "http://192.168.101.5:3001/api/v1/signup",
         formData
       );
       if (response.status === 201) {
