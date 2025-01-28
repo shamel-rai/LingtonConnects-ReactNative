@@ -49,7 +49,7 @@ const LoginPage = () => {
     setIsLoading(true);
     try {
       const response = await axios.post(
-        "http://192.168.101.5:3001/api/v1/login",
+        "http://192.168.101.2:3001/api/v1/login",
         {
           username,
           password,
