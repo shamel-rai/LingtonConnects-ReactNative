@@ -18,6 +18,7 @@ import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
+import API from "../utils/api";
 
 const LoginPage = () => {
   const router = useRouter();
@@ -48,23 +49,21 @@ const LoginPage = () => {
 
     setIsLoading(true);
     try {
-      const response = await axios.post(
-        "http://192.168.101.2:3001/api/v1/login",
-        {
-          username,
-          password,
-        }
-      );
+      const response = await axios.post(API.authentication.login(), {
+        // <-- Fix applied here
+        username,
+        password,
+      });
 
       if (response.status === 200) {
-        const { token, user } = response.data; // Extract token and user data from the response
+        const { token, user } = response.data;
 
-        // Store token securely (only accessToken for now)
+        // Store token securely
         await SecureStore.setItemAsync("authToken", token);
         await SecureStore.setItemAsync("userId", user.id);
 
         Alert.alert("Login Successful", `Welcome back, ${user.username}!`);
-        router.replace("/(main)/HomePage"); // Navigate to the homepage
+        router.replace("/(main)/HomePage"); // Navigate to homepage
       }
     } catch (error) {
       const errorMessage =
@@ -74,8 +73,6 @@ const LoginPage = () => {
       setIsLoading(false);
     }
   };
-
-
 
   return (
     <SafeAreaView style={styles.container}>

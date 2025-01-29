@@ -1,4 +1,4 @@
-const BASE_URL = "http://192.168.101.2:3001/api/v1";
+const BASE_URL = "http://192.168.101.4:3001/api/v1";
 
 // Named export
 const API = {
@@ -15,7 +15,7 @@ const API = {
     create: () => `${BASE_URL}/posts`,
   },
   authentication: {
-    login: () => `${BASE_URL}/auth/login`,
+    login: () => `${BASE_URL}/login`,
     logout: () => `${BASE_URL}/auth/logout`,
     signup: () => `${BASE_URL}/signup`,
   },

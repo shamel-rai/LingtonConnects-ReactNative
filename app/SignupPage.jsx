@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import axios from "axios";
+import API from "../utils/api";
 
 const SignupPage = () => {
   const router = useRouter();
@@ -68,12 +69,8 @@ const SignupPage = () => {
     if (!validateInputs()) return;
 
     setIsLoading(true);
-    const signupAPI = "http://192.168.101.5:3001/api/v1/signup";
     try {
-      const response = await axios.post(
-        "http://192.168.101.5:3001/api/v1/signup",
-        formData
-      );
+      const response = await axios.post(API.authentication.signup(), formData);
       if (response.status === 201) {
         Alert.alert("Signup Successful!", "Welcome to the platform");
         setFormData({ fullName: "", username: "", email: "", password: "" }); // Clear the form

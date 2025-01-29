@@ -162,6 +162,18 @@ const EditProfileScreen = () => {
       }
     } catch (error) {
       console.error("Error updating profile: ", error.message);
+
+      if (error.response) {
+        // Log server-side error
+        console.error("Server Error:", error.response.data);
+      } else if (error.request) {
+        // Log network issues
+        console.error("Network Error:", error.request);
+      } else {
+        console.error("Unknown Error:", error.message);
+      }
+
+      alert("Failed to update profile. Please try again.");
     } finally {
       setSaving(false);
     }

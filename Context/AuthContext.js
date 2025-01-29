@@ -18,7 +18,7 @@ export const AuthProvider = ({ children }) => {
 
         if (token && storedUserId) {
           const response = await axios.get(
-            "http://192.168.101.2:3001/api/v1/homepage",
+            "http://192.168.101.4:3001/api/v1/homepage",
             {
               headers: { Authorization: `Bearer ${token}` },
             }
