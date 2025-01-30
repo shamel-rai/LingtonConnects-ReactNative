@@ -1,27 +1,28 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   Keyboard,
   Alert,
   ActivityIndicator,
+  StyleSheet,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import axios from "axios";
-import * as SecureStore from "expo-secure-store";
+import { AuthContext } from "../Context/AuthContext"; // Import AuthContext
 import API from "../utils/api";
 
 const LoginPage = () => {
   const router = useRouter();
+  const { login } = useContext(AuthContext); // Use login function from AuthContext
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -50,7 +51,6 @@ const LoginPage = () => {
     setIsLoading(true);
     try {
       const response = await axios.post(API.authentication.login(), {
-        // <-- Fix applied here
         username,
         password,
       });
@@ -58,9 +58,8 @@ const LoginPage = () => {
       if (response.status === 200) {
         const { token, user } = response.data;
 
-        // Store token securely
-        await SecureStore.setItemAsync("authToken", token);
-        await SecureStore.setItemAsync("userId", user.id);
+        // Call login function from AuthContext to update state instantly
+        login(token, user.id, user.username);
 
         Alert.alert("Login Successful", `Welcome back, ${user.username}!`);
         router.replace("/(main)/HomePage"); // Navigate to homepage

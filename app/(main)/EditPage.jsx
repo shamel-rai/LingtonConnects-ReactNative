@@ -53,12 +53,30 @@ const EditProfileScreen = () => {
     "Android/IOS",
   ];
 
+  console.log("Edditpage Token: ", authToken);
+  console.log("URL: ", API.profile.get(userId));
   useEffect(() => {
+    console.log(
+      "Checking dependencies - userId:",
+      userId,
+      "authToken:",
+      authToken
+    );
+
+    if (!userId || !authToken) {
+      console.log("User is not authenticated yet, skipping fetch.");
+      return;
+    }
+
     const fetchProfile = async () => {
       try {
+        console.log("Fetching profile for user:", userId);
         const response = await axios.get(API.profile.get(userId), {
           headers: { Authorization: `Bearer ${authToken}` },
         });
+
+        console.log("Profile Response:", response.data);
+
         const {
           username,
           bio,
@@ -77,16 +95,20 @@ const EditProfileScreen = () => {
         setFollowing(following || 0);
         setPost(post || 0);
         setError("");
+
+        console.log(
+          "Profile fetched successfully, setting loading to false..."
+        );
+        setLoading(false); // THIS SHOULD TRIGGER A RE-RENDER
       } catch (err) {
-        setError("Failed to load profile. Please try again later.");
-        console.error("Error fetching profile: ", err.message);
-      } finally {
+        console.error("Error fetching profile:", err.message);
+        setError("Failed to load Profile. Please Try again");
         setLoading(false);
       }
     };
 
     fetchProfile();
-  }, [userId, authToken]);
+  }, [userId, authToken]); // Make sure 'loading' is removed from dependencies
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -141,12 +163,12 @@ const EditProfileScreen = () => {
       console.log("Profile Updated", profileResponse.data);
 
       if (profileImage !== "https://via.placeholder.com/150") {
+        const newImageUrri = profileImage.startsWith("file://")
+          ? profileImage
+          : "file://" + profileImage;
+
         const formData = new FormData();
-        formData.append("file", {
-          uri: profileImage,
-          name: "profile.jpg",
-          type: "image/jpeg",
-        });
+        formData;
 
         const pictureResponse = await axios.put(
           API.profile.uploadProfilePicture(userId),
