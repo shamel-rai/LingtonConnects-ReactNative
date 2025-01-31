@@ -1,6 +1,9 @@
+// AuthContext.js
 import React, { createContext, useState, useEffect } from "react";
 import * as SecureStore from "expo-secure-store";
 import { View, Text } from "react-native";
+import apiClient, { setAuthInterceptor } from "../utils/axiosSetup";
+// Adjust the import path as needed
 
 export const AuthContext = createContext();
 
@@ -12,6 +15,10 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // 1) Register the Axios interceptor, passing a function that
+    //    will be called when the token is expired.
+    setAuthInterceptor(() => logout);
+
     const checkAuthentication = async () => {
       try {
         const token = await SecureStore.getItemAsync("authToken");
@@ -42,7 +49,6 @@ export const AuthProvider = ({ children }) => {
     checkAuthentication();
   }, []);
 
-  // Function to login user and update authentication state instantly
   const login = async (token, userId, username) => {
     console.log("Login Function Called:", { token, userId, username });
 
@@ -53,7 +59,7 @@ export const AuthProvider = ({ children }) => {
       setUsername(username);
       setIsAuthenticated(true);
 
-      // Store authentication details asynchronously
+      // Store in SecureStore
       await SecureStore.setItemAsync("authToken", token);
       await SecureStore.setItemAsync("userId", userId);
       await SecureStore.setItemAsync("username", username);
@@ -64,13 +70,15 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Function to log out user
   const logout = async () => {
     console.log("Logout Function Called");
-
-    await SecureStore.deleteItemAsync("authToken");
-    await SecureStore.deleteItemAsync("userId");
-    await SecureStore.deleteItemAsync("username");
+    try {
+      await SecureStore.deleteItemAsync("authToken");
+      await SecureStore.deleteItemAsync("userId");
+      await SecureStore.deleteItemAsync("username");
+    } catch (error) {
+      console.error("Error removing auth data:", error);
+    }
 
     setIsAuthenticated(false);
     setAuthToken(null);
@@ -79,7 +87,7 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   };
 
-  // Force authentication refresh when token/userId/username change
+  // Keep your existing refresh logic if needed
   useEffect(() => {
     const refreshAuthState = async () => {
       const token = await SecureStore.getItemAsync("authToken");

@@ -7,7 +7,7 @@ const API = {
     get: (userId) => `${BASE_URL}/${userId}`,
     update: (userId) => `${BASE_URL}/${userId}`,
     uploadProfilePicture: (userId) =>
-      `${BASE_URL}/profile/${userId}/profile-picture`,
+      `${BASE_URL}/${userId}/profile-picture`,
   },
   posts: {
     getAll: () => `${BASE_URL}/posts`,

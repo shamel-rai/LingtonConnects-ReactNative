@@ -146,30 +146,37 @@ const EditProfileScreen = () => {
 
     setSaving(true);
     try {
-      const profilePayload = {
-        username,
-        bio,
-        interests,
-      };
+      // ✅ Update profile text fields first
+      const profilePayload = { username, bio, interests };
+      await axios.put(API.profile.update(userId), profilePayload, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
 
-      const profileResponse = await axios.put(
-        API.profile.update(userId),
-        profilePayload,
-        {
-          headers: { Authorization: `Bearer ${authToken}` },
-        }
-      );
+      console.log("Profile Updated");
 
-      console.log("Profile Updated", profileResponse.data);
+      // ✅ Check if the user has selected a new profile image
+      if (profileImage && !profileImage.startsWith("http")) {
+        console.log("📤 Uploading new profile picture...");
 
-      if (profileImage !== "https://via.placeholder.com/150") {
-        const newImageUrri = profileImage.startsWith("file://")
-          ? profileImage
-          : "file://" + profileImage;
+        const localUri = profileImage;
+        let filename = localUri.split("/").pop();
 
+        // ✅ Remove special characters in filename
+        const cleanFileName = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
+        const match = /\.(\w+)$/.exec(cleanFileName);
+        const fileType = match ? `image/${match[1]}` : "image";
+
+        // ✅ Create FormData with the correct field name
         const formData = new FormData();
-        formData;
+        formData.append("profilePicture", {
+          uri: localUri,
+          name: cleanFileName,
+          type: fileType,
+        });
 
+        console.log("🚀 FormData Sent:", formData);
+
+        // ✅ Use `PUT` to match backend
         const pictureResponse = await axios.put(
           API.profile.uploadProfilePicture(userId),
           formData,
@@ -180,19 +187,28 @@ const EditProfileScreen = () => {
             },
           }
         );
-        console.log("Profile Picture updated", pictureResponse.data);
+
+        console.log("✅ Profile Picture updated:", pictureResponse.data);
+
+        // ✅ Update frontend profile image state
+        const imageUrl = `http://192.168.101.4:3001/uploads/${cleanFileName}`;
+        setProfileImage(imageUrl);
+      } else {
+        console.log("No profile image update needed.");
       }
+
+      // ✅ Show success alert and navigate to profile screen
+      alert("Profile updated successfully!");
+      router.push("/ProfilePage");
     } catch (error) {
-      console.error("Error updating profile: ", error.message);
+      console.error("🚨 Error updating profile:", error.message);
 
       if (error.response) {
-        // Log server-side error
-        console.error("Server Error:", error.response.data);
+        console.error("🚨 Server Error:", error.response.data);
       } else if (error.request) {
-        // Log network issues
-        console.error("Network Error:", error.request);
+        console.error("🚨 Network Error:", error.request);
       } else {
-        console.error("Unknown Error:", error.message);
+        console.error("🚨 Unknown Error:", error.message);
       }
 
       alert("Failed to update profile. Please try again.");
@@ -200,7 +216,6 @@ const EditProfileScreen = () => {
       setSaving(false);
     }
   };
-
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>

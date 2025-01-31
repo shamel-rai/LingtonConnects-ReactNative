@@ -42,6 +42,7 @@ function AppContent() {
         <>
           <Stack.Screen name="(main)/HomePage" />
           <Stack.Screen name="(main)/ProfilePage" />
+          <Stack.Screen name="(main)/EditPage" />
         </>
       )}
     </Stack>
