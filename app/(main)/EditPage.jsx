@@ -108,7 +108,11 @@ const EditProfileScreen = () => {
     };
 
     fetchProfile();
-  }, [userId, authToken]); // Make sure 'loading' is removed from dependencies
+  }, [userId, authToken]);
+
+  useEffect(() => {
+    console.log("🔄 Profile Image Updated:", profileImage);
+  }, [profileImage]);
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -119,10 +123,12 @@ const EditProfileScreen = () => {
     });
 
     if (!result.canceled) {
+      console.log("📸 Selected Image URI:", result.assets[0].uri);
+
+      // ✅ Show selected image immediately
       setProfileImage(result.assets[0].uri);
     }
   };
-
   const addInterest = (interest) => {
     if (!interests.includes(interest)) {
       setInterests([...interests, interest]);
@@ -139,44 +145,42 @@ const EditProfileScreen = () => {
       alert("Username cannot be empty.");
       return;
     }
+
     if (bio.length > 150) {
       alert("Bio must be less than 150 characters.");
       return;
     }
 
     setSaving(true);
+
     try {
-      // ✅ Update profile text fields first
-      const profilePayload = { username, bio, interests };
+      const profilePayload = { username, bio };
+
       await axios.put(API.profile.update(userId), profilePayload, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
 
-      console.log("Profile Updated");
+      console.log("✅ Profile details updated successfully");
 
-      // ✅ Check if the user has selected a new profile image
+      // ✅ 2. Upload image only if a new one is selected
       if (profileImage && !profileImage.startsWith("http")) {
         console.log("📤 Uploading new profile picture...");
 
         const localUri = profileImage;
         let filename = localUri.split("/").pop();
 
-        // ✅ Remove special characters in filename
-        const cleanFileName = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
-        const match = /\.(\w+)$/.exec(cleanFileName);
-        const fileType = match ? `image/${match[1]}` : "image";
+        const match = /\.(\w+)$/.exec(filename);
+        const fileType = match ? `image/${match[1]}` : "image/jpeg"; // Default to JPEG if unknown
 
-        // ✅ Create FormData with the correct field name
         const formData = new FormData();
         formData.append("profilePicture", {
           uri: localUri,
-          name: cleanFileName,
+          name: filename,
           type: fileType,
         });
 
-        console.log("🚀 FormData Sent:", formData);
+        console.log("🚀 FormData prepared:", formData);
 
-        // ✅ Use `PUT` to match backend
         const pictureResponse = await axios.put(
           API.profile.uploadProfilePicture(userId),
           formData,
@@ -188,34 +192,28 @@ const EditProfileScreen = () => {
           }
         );
 
-        console.log("✅ Profile Picture updated:", pictureResponse.data);
+        console.log("✅ Image Upload Response:", pictureResponse.data);
 
-        // ✅ Update frontend profile image state
-        const imageUrl = `http://192.168.101.4:3001/uploads/${cleanFileName}`;
-        setProfileImage(imageUrl);
+        const uploadedImageUrl = pictureResponse.data.profilePicture;
+        const finalImageUrl = uploadedImageUrl.startsWith("http")
+          ? uploadedImageUrl
+          : `http://192.168.101.4:3001${uploadedImageUrl}`;
+
+        setProfileImage(finalImageUrl);
       } else {
-        console.log("No profile image update needed.");
+        console.log("ℹ️ No profile image update needed.");
       }
 
-      // ✅ Show success alert and navigate to profile screen
       alert("Profile updated successfully!");
       router.push("/ProfilePage");
     } catch (error) {
       console.error("🚨 Error updating profile:", error.message);
-
-      if (error.response) {
-        console.error("🚨 Server Error:", error.response.data);
-      } else if (error.request) {
-        console.error("🚨 Network Error:", error.request);
-      } else {
-        console.error("🚨 Unknown Error:", error.message);
-      }
-
       alert("Failed to update profile. Please try again.");
     } finally {
       setSaving(false);
     }
   };
+
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -251,7 +249,21 @@ const EditProfileScreen = () => {
 
         <View style={styles.profileSection}>
           <TouchableOpacity style={styles.imageContainer} onPress={pickImage}>
-            <Image source={{ uri: profileImage }} style={styles.profileImage} />
+            <Image
+              source={{
+                uri: profileImage
+                  ? profileImage.startsWith("file:") ||
+                    profileImage.startsWith("content:") ||
+                    profileImage.startsWith("data:")
+                    ? profileImage
+                    : profileImage.startsWith("http")
+                    ? profileImage
+                    : `http://192.168.101.4:3001${profileImage}`
+                  : "https://via.placeholder.com/150",
+              }}
+              style={styles.profileImage}
+            />
+
             <View style={styles.editIconContainer}>
               <Text style={styles.editIcon}>📷</Text>
             </View>

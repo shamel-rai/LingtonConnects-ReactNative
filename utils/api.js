@@ -6,8 +6,9 @@ const API = {
   profile: {
     get: (userId) => `${BASE_URL}/${userId}`,
     update: (userId) => `${BASE_URL}/${userId}`,
-    uploadProfilePicture: (userId) =>
-      `${BASE_URL}/${userId}/profile-picture`,
+    uploadProfilePicture: (userId) => `${BASE_URL}/${userId}/profile-picture`,
+    followers: (userId) => `${BASE_URL}/${userId}/followers`,
+    following: (userId) => `${BASE_URL}/${userId}/following`,
   },
   posts: {
     getAll: () => `${BASE_URL}/posts`,
