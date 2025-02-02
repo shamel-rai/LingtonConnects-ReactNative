@@ -77,29 +77,20 @@ const EditProfileScreen = () => {
 
         console.log("Profile Response:", response.data);
 
-        const {
-          username,
-          bio,
-          profilePicture,
-          interests,
-          followers,
-          following,
-          post,
-        } = response.data;
+        const { username, bio, profilePicture, interests, post } =
+          response.data;
 
         setUsername(username);
         setBio(bio);
         setProfileImage(profilePicture || "https://via.placeholder.com/150");
         setInterests(interests || []);
-        setFollowers(followers || 0);
-        setFollowing(following || 0);
         setPost(post || 0);
         setError("");
 
         console.log(
           "Profile fetched successfully, setting loading to false..."
         );
-        setLoading(false); // THIS SHOULD TRIGGER A RE-RENDER
+        setLoading(false);
       } catch (err) {
         console.error("Error fetching profile:", err.message);
         setError("Failed to load Profile. Please Try again");
@@ -162,7 +153,6 @@ const EditProfileScreen = () => {
 
       console.log("✅ Profile details updated successfully");
 
-      // ✅ 2. Upload image only if a new one is selected
       if (profileImage && !profileImage.startsWith("http")) {
         console.log("📤 Uploading new profile picture...");
 
@@ -170,7 +160,7 @@ const EditProfileScreen = () => {
         let filename = localUri.split("/").pop();
 
         const match = /\.(\w+)$/.exec(filename);
-        const fileType = match ? `image/${match[1]}` : "image/jpeg"; // Default to JPEG if unknown
+        const fileType = match ? `image/${match[1]}` : "image/jpeg";
 
         const formData = new FormData();
         formData.append("profilePicture", {
@@ -197,7 +187,7 @@ const EditProfileScreen = () => {
         const uploadedImageUrl = pictureResponse.data.profilePicture;
         const finalImageUrl = uploadedImageUrl.startsWith("http")
           ? uploadedImageUrl
-          : `http://192.168.101.4:3001${uploadedImageUrl}`;
+          : `http://192.168.101.9:3001${uploadedImageUrl}`;
 
         setProfileImage(finalImageUrl);
       } else {
@@ -242,7 +232,7 @@ const EditProfileScreen = () => {
       >
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.push("/ProfilePage")}
+          onPress={() => router.replace("/ProfilePage")}
         >
           <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
@@ -258,7 +248,7 @@ const EditProfileScreen = () => {
                     ? profileImage
                     : profileImage.startsWith("http")
                     ? profileImage
-                    : `http://192.168.101.4:3001${profileImage}`
+                    : `http://192.168.101.9:3001${profileImage}`
                   : "https://via.placeholder.com/150",
               }}
               style={styles.profileImage}
@@ -268,27 +258,6 @@ const EditProfileScreen = () => {
               <Text style={styles.editIcon}>📷</Text>
             </View>
           </TouchableOpacity>
-
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>
-                {followers.toLocaleString()}
-              </Text>
-              <Text style={styles.statLabel}>Followers</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>
-                {following.toLocaleString()}
-              </Text>
-              <Text style={styles.statLabel}>Following</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{post.toLocaleString()}</Text>
-              <Text style={styles.statLabel}>Post</Text>
-            </View>
-          </View>
         </View>
       </LinearGradient>
 
@@ -428,34 +397,7 @@ const styles = StyleSheet.create({
   editIcon: {
     fontSize: 20,
   },
-  statsContainer: {
-    flexDirection: "row",
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    borderRadius: 20,
-    padding: 15,
-    width: width * 0.8,
-    justifyContent: "space-around",
-    alignItems: "center",
-  },
-  statItem: {
-    alignItems: "center",
-    flex: 1,
-  },
-  statDivider: {
-    width: 1,
-    height: "80%",
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "white",
-  },
-  statLabel: {
-    color: "rgba(255, 255, 255, 0.8)",
-    fontSize: 14,
-    marginTop: 4,
-  },
+
   formSection: {
     padding: 20,
   },
