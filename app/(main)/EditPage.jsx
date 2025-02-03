@@ -23,11 +23,10 @@ import API from "../../utils/api";
 const { width } = Dimensions.get("window");
 
 const EditProfileScreen = () => {
+  // State variables
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [post, setPost] = useState(0);
-  const [followers, setFollowers] = useState(0);
-  const [following, setFollowing] = useState(0);
   const [profileImage, setProfileImage] = useState(
     "https://via.placeholder.com/150"
   );
@@ -36,8 +35,10 @@ const EditProfileScreen = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const router = useRouter();
+  // Flag to determine if a new image has been selected
+  const [isNewProfileImage, setIsNewProfileImage] = useState(false);
 
+  const router = useRouter();
   const { userId, authToken } = useContext(AuthContext);
 
   const availableInterests = [
@@ -53,43 +54,24 @@ const EditProfileScreen = () => {
     "Android/IOS",
   ];
 
-  console.log("Edditpage Token: ", authToken);
-  console.log("URL: ", API.profile.get(userId));
+  // Fetch the user profile when the userId and authToken are available.
   useEffect(() => {
-    console.log(
-      "Checking dependencies - userId:",
-      userId,
-      "authToken:",
-      authToken
-    );
-
     if (!userId || !authToken) {
-      console.log("User is not authenticated yet, skipping fetch.");
       return;
     }
-
     const fetchProfile = async () => {
       try {
-        console.log("Fetching profile for user:", userId);
         const response = await axios.get(API.profile.get(userId), {
           headers: { Authorization: `Bearer ${authToken}` },
         });
-
-        console.log("Profile Response:", response.data);
-
         const { username, bio, profilePicture, interests, post } =
           response.data;
-
         setUsername(username);
         setBio(bio);
         setProfileImage(profilePicture || "https://via.placeholder.com/150");
         setInterests(interests || []);
         setPost(post || 0);
         setError("");
-
-        console.log(
-          "Profile fetched successfully, setting loading to false..."
-        );
         setLoading(false);
       } catch (err) {
         console.error("Error fetching profile:", err.message);
@@ -101,10 +83,7 @@ const EditProfileScreen = () => {
     fetchProfile();
   }, [userId, authToken]);
 
-  useEffect(() => {
-    console.log("🔄 Profile Image Updated:", profileImage);
-  }, [profileImage]);
-
+  // Open image picker and mark that a new image was selected.
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -115,11 +94,11 @@ const EditProfileScreen = () => {
 
     if (!result.canceled) {
       console.log("📸 Selected Image URI:", result.assets[0].uri);
-
-      // ✅ Show selected image immediately
       setProfileImage(result.assets[0].uri);
+      setIsNewProfileImage(true);
     }
   };
+
   const addInterest = (interest) => {
     if (!interests.includes(interest)) {
       setInterests([...interests, interest]);
@@ -131,34 +110,39 @@ const EditProfileScreen = () => {
     setInterests(interests.filter((item) => item !== interest));
   };
 
+  // Handle Save action for updating details and/or profile picture.
   const handleSave = async () => {
     if (!username.trim()) {
       alert("Username cannot be empty.");
       return;
     }
-
     if (bio.length > 150) {
       alert("Bio must be less than 150 characters.");
       return;
     }
 
     setSaving(true);
-
     try {
-      const profilePayload = { username, bio };
+      // 1. Update profile details
+      const profilePayload = { username, bio, interests };
+      console.log("🚀 Sending profile update request:", profilePayload);
+      const detailsResponse = await axios.put(
+        API.profile.update(userId),
+        profilePayload,
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
+      console.log(
+        "✅ Profile details updated successfully:",
+        detailsResponse.data
+      );
 
-      await axios.put(API.profile.update(userId), profilePayload, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
-
-      console.log("✅ Profile details updated successfully");
-
-      if (profileImage && !profileImage.startsWith("http")) {
+      // 2. Update profile picture if a new image was selected.
+      if (isNewProfileImage) {
         console.log("📤 Uploading new profile picture...");
-
         const localUri = profileImage;
         let filename = localUri.split("/").pop();
-
         const match = /\.(\w+)$/.exec(filename);
         const fileType = match ? `image/${match[1]}` : "image/jpeg";
 
@@ -168,8 +152,6 @@ const EditProfileScreen = () => {
           name: filename,
           type: fileType,
         });
-
-        console.log("🚀 FormData prepared:", formData);
 
         const pictureResponse = await axios.put(
           API.profile.uploadProfilePicture(userId),
@@ -181,21 +163,19 @@ const EditProfileScreen = () => {
             },
           }
         );
-
         console.log("✅ Image Upload Response:", pictureResponse.data);
-
         const uploadedImageUrl = pictureResponse.data.profilePicture;
-        const finalImageUrl = uploadedImageUrl.startsWith("http")
-          ? uploadedImageUrl
-          : `http://192.168.101.9:3001${uploadedImageUrl}`;
-
-        setProfileImage(finalImageUrl);
+        setProfileImage(
+          uploadedImageUrl.startsWith("http")
+            ? uploadedImageUrl
+            : `http://192.168.101.3:3001${uploadedImageUrl}`
+        );
       } else {
         console.log("ℹ️ No profile image update needed.");
       }
 
       alert("Profile updated successfully!");
-      router.push("/ProfilePage");
+      router.replace("/ProfilePage");
     } catch (error) {
       console.error("🚨 Error updating profile:", error.message);
       alert("Failed to update profile. Please try again.");
@@ -206,7 +186,7 @@ const EditProfileScreen = () => {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <View style={styles.centered}>
         <ActivityIndicator size="large" color="#4A00E0" />
       </View>
     );
@@ -214,7 +194,7 @@ const EditProfileScreen = () => {
 
   if (error) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <View style={styles.centered}>
         <Text style={{ color: "red", textAlign: "center" }}>{error}</Text>
         <TouchableOpacity onPress={() => setLoading(true)}>
           <Text style={{ color: "#4A00E0", marginTop: 10 }}>Retry</Text>
@@ -236,7 +216,6 @@ const EditProfileScreen = () => {
         >
           <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
-
         <View style={styles.profileSection}>
           <TouchableOpacity style={styles.imageContainer} onPress={pickImage}>
             <Image
@@ -248,12 +227,11 @@ const EditProfileScreen = () => {
                     ? profileImage
                     : profileImage.startsWith("http")
                     ? profileImage
-                    : `http://192.168.101.9:3001${profileImage}`
+                    : `http://192.168.101.3:3001${profileImage}`
                   : "https://via.placeholder.com/150",
               }}
               style={styles.profileImage}
             />
-
             <View style={styles.editIconContainer}>
               <Text style={styles.editIcon}>📷</Text>
             </View>
@@ -351,6 +329,7 @@ const EditProfileScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   container: {
     flex: 1,
     backgroundColor: "#fff",
@@ -364,7 +343,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: Platform.OS === "ios" ? 50 : StatusBar.currentHeight + 10,
     left: 20,
-    zIndex: 10, // Ensure it appears on top of other elements
+    zIndex: 10,
   },
   profileSection: {
     alignItems: "center",
@@ -397,7 +376,6 @@ const styles = StyleSheet.create({
   editIcon: {
     fontSize: 20,
   },
-
   formSection: {
     padding: 20,
   },
@@ -447,7 +425,7 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderRadius: 12,
     marginBottom: 16,
-    maxHeight: 150, // Ensure the dropdown doesn't exceed 150px
+    maxHeight: 150,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,

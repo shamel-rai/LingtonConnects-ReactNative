@@ -1,4 +1,4 @@
-const BASE_URL = "http://192.168.101.9:3001/api/v1";
+const BASE_URL = "http://192.168.101.3:3001/api/v1";
 
 // Named export
 const API = {
@@ -14,8 +14,11 @@ const API = {
   },
   posts: {
     getAll: () => `${BASE_URL}/posts`,
-    getByUser: (userId) => `${BASE_URL}/posts/${userId}`,
-    create: () => `${BASE_URL}/posts`,
+    addPost: () => `${BASE_URL}/posts`,
+    getUserPost: (userId) => `${BASE_URL}/${userId}`,
+    likePost: (postId) => `${BASE_URL}/posts/${postId}/like`,
+    commentPost: (postId) => `${BASE_URL}/posts/${postId}/comment`,
+    sharePost: (postId) => `${BASE_URL}/posts/${postId}/share`,
   },
   authentication: {
     login: () => `${BASE_URL}/login`,

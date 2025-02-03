@@ -1,4 +1,4 @@
-import React, { useState, useRef, useContext } from "react";
+import React, { useState, useRef, useContext, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,22 +10,58 @@ import {
   Platform,
   Animated,
   Dimensions,
+  FlatList,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { AuthContext } from "@/Context/AuthContext";
+import API from "../../utils/api";
+import apiClient from "../../utils/axiosSetup";
 
 const { width, height } = Dimensions.get("window");
 
 const HomePage = () => {
+  // Get auth details from AuthContext.
+  const { authToken, username, profilePicture, userId, logout } =
+    useContext(AuthContext);
+
+  // Fetch the profile (including the profilePicture) from the backend—same as on ProfilePage.
+  const [profile, setProfile] = useState(null);
+  useEffect(() => {
+    if (!userId || !authToken) return;
+    const fetchProfile = async () => {
+      try {
+        const response = await apiClient.get(API.profile.get(userId), {
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        setProfile(response.data);
+      } catch (err) {
+        console.error("Error fetching profile in HomePage:", err);
+      }
+    };
+    fetchProfile();
+  }, [userId, authToken]);
+
+  // Compute full URL for the profile picture.
+  // If the backend returns a relative URL, prepend your base URL.
+  const profilePicUrl =
+    profile && profile.profilePicture
+      ? profile.profilePicture.startsWith("http")
+        ? profile.profilePicture
+        : `http://192.168.101.3:3001${profile.profilePicture}`
+      : profilePicture && profilePicture.startsWith("http")
+      ? profilePicture
+      : profilePicture
+      ? `http://192.168.101.3:3001${profilePicture}`
+      : "https://via.placeholder.com/100";
+
+  // Navigation and side menu logic.
   const [activeTab, setActiveTab] = useState("home");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const slideAnim = useRef(new Animated.Value(-width)).current;
   const router = useRouter();
-
-  const { authToken, username, logout } = useContext(AuthContext);
 
   const toggleMenu = () => {
     const toValue = isMenuOpen ? -width : 0;
@@ -37,6 +73,18 @@ const HomePage = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
+  const closeMenuAndNavigate = (route) => {
+    Animated.spring(slideAnim, {
+      toValue: -width,
+      useNativeDriver: true,
+      friction: 8,
+    }).start(() => {
+      setIsMenuOpen(false);
+      router.push(route);
+    });
+  };
+
+  // Dummy posts array.
   const posts = [
     {
       id: "1",
@@ -55,19 +103,12 @@ const HomePage = () => {
       time: "2h ago",
       isLiked: true,
     },
-    // Add more posts
+    // Add more posts as needed.
   ];
 
-  console.log("Homepage Authentication: ", authToken);
-  console.log("Username Authentication: ", username);
   const renderSideMenu = () => (
     <Animated.View
-      style={[
-        styles.sideMenu,
-        {
-          transform: [{ translateX: slideAnim }],
-        },
-      ]}
+      style={[styles.sideMenu, { transform: [{ translateX: slideAnim }] }]}
     >
       <LinearGradient
         colors={["#4A00E0", "#8E2DE2"]}
@@ -77,12 +118,15 @@ const HomePage = () => {
           <Feather name="menu" size={24} color="white" />
         </TouchableOpacity>
 
+        {/* Side menu profile item using the backend profile picture */}
         <TouchableOpacity
           style={styles.menuProfile}
-          onPress={() => router.push("/ProfilePage")}
+          onPress={() => {
+            router.push("/ProfilePage");
+          }}
         >
           <Image
-            source={{ uri: "https://via.placeholder.com/100" }}
+            source={{ uri: profilePicUrl }}
             style={styles.menuProfileImage}
           />
           <View style={styles.menuProfileInfo}>
@@ -98,42 +142,26 @@ const HomePage = () => {
         <ScrollView style={styles.menuItems}>
           <TouchableOpacity
             style={styles.menuItem}
-            onPress={() => {
-              setTimeout(() => {
-                router.push("/StudyBuddyPage");
-              }, 0);
-            }}
+            onPress={() => closeMenuAndNavigate("/StudyBuddyPage")}
           >
             <Feather name="user" size={24} color="white" />
             <Text style={styles.menuItemText}>Study Buddy</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.menuItem}
-            onPress={() => {
-              setTimeout(() => {
-                router.push("/RoadmapPage");
-              }, 0);
-            }}
+            onPress={() => closeMenuAndNavigate("/RoadmapPage")}
           >
             <Feather name="map" size={24} color="white" />
             <Text style={styles.menuItemText}>Roadmap</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={toggleMenu}>
             <Feather name="settings" size={24} color="white" />
             <Text style={styles.menuItemText}>Settings</Text>
           </TouchableOpacity>
-          {/* <TouchableOpacity style={styles.menuItem}>
-                        <MaterialCommunityIcons name="theme-light-dark" size={24} color="white" />
-                        <Text style={styles.menuItemText}>Theme</Text>
-                    </TouchableOpacity> */}
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={toggleMenu}>
             <Feather name="info" size={24} color="white" />
             <Text style={styles.menuItemText}>About</Text>
           </TouchableOpacity>
-          {/* <TouchableOpacity style={styles.menuItem}>
-            <Feather name="log-out" size={24} color="white" />
-            <Text style={styles.menuItemText}>Logout</Text>
-          </TouchableOpacity> */}
           <TouchableOpacity style={styles.menuItem} onPress={logout}>
             <Feather name="log-out" size={24} color="white" />
             <Text style={styles.menuItemText}>Logout</Text>
@@ -176,13 +204,10 @@ const HomePage = () => {
             <Feather name="more-horizontal" size={24} color="#666" />
           </TouchableOpacity>
         </View>
-
         <Text style={styles.postContent}>{post.content}</Text>
-
         {post.image && (
           <Image source={{ uri: post.image }} style={styles.postImage} />
         )}
-
         <View style={styles.postStats}>
           <TouchableOpacity style={styles.statButton}>
             <Ionicons
@@ -211,7 +236,6 @@ const HomePage = () => {
             <Feather name="bookmark" size={24} color="#666" />
           </TouchableOpacity>
         </View>
-
         <Text style={styles.timeStamp}>{post.time}</Text>
       </LinearGradient>
     </View>
@@ -219,27 +243,25 @@ const HomePage = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
-
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="#4A00E0"
+        translucent={false}
+      />
       <LinearGradient colors={["#4A00E0", "#8E2DE2"]} style={styles.header}>
         <TouchableOpacity onPress={toggleMenu}>
           <Feather name="menu" size={24} color="white" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Home</Text>
-        <TouchableOpacity onPress={() => router.push("/profile")}>
-          <Image
-            source={{ uri: "https://via.placeholder.com/50" }}
-            style={styles.headerAvatar}
-          />
+        {/* Header small avatar now uses the backend profile picture */}
+        <TouchableOpacity onPress={() => router.push("/ProfilePage")}>
+          <Image source={{ uri: profilePicUrl }} style={styles.headerAvatar} />
         </TouchableOpacity>
       </LinearGradient>
-
       <ScrollView style={styles.content}>
         {posts.map((post) => renderPost(post))}
       </ScrollView>
-
       {renderSideMenu()}
-
       <LinearGradient colors={["#4A00E0", "#8E2DE2"]} style={styles.navbar}>
         <TouchableOpacity
           style={[styles.navItem, activeTab === "home" && styles.activeNavItem]}
@@ -248,7 +270,6 @@ const HomePage = () => {
           <Feather name="home" size={24} color="white" />
           {activeTab === "home" && <View style={styles.activeIndicator} />}
         </TouchableOpacity>
-
         <TouchableOpacity
           style={[
             styles.navItem,
@@ -256,13 +277,12 @@ const HomePage = () => {
           ]}
           onPress={() => {
             setActiveTab("search");
-            router.push("/SearchPage"); // Navigate to SearchPage
+            router.push("/SearchPage");
           }}
         >
           <Feather name="search" size={24} color="white" />
           {activeTab === "search" && <View style={styles.activeIndicator} />}
         </TouchableOpacity>
-
         <TouchableOpacity
           style={[
             styles.navItem,
@@ -275,7 +295,6 @@ const HomePage = () => {
           </View>
           {activeTab === "create" && <View style={styles.activeIndicator} />}
         </TouchableOpacity>
-
         <TouchableOpacity
           style={[
             styles.navItem,
@@ -293,7 +312,6 @@ const HomePage = () => {
             <View style={styles.activeIndicator} />
           )}
         </TouchableOpacity>
-
         <TouchableOpacity
           style={[
             styles.navItem,
@@ -315,10 +333,7 @@ const HomePage = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
+  container: { flex: 1, backgroundColor: "#fff" },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -326,11 +341,7 @@ const styles = StyleSheet.create({
     padding: 15,
     paddingTop: Platform.OS === "ios" ? 0 : 15,
   },
-  headerTitle: {
-    color: "#fff",
-    fontSize: 20,
-    fontWeight: "bold",
-  },
+  headerTitle: { color: "#fff", fontSize: 20, fontWeight: "bold" },
   headerAvatar: {
     width: 32,
     height: 32,
@@ -338,9 +349,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#fff",
   },
-  content: {
-    flex: 1,
-  },
+  content: { flex: 1 },
   sideMenu: {
     position: "absolute",
     top: 0,
@@ -362,11 +371,7 @@ const styles = StyleSheet.create({
     zIndex: 1000,
     padding: 5,
   },
-  menuProfile: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 30,
-  },
+  menuProfile: { flexDirection: "row", alignItems: "center", marginBottom: 30 },
   menuProfileImage: {
     width: 60,
     height: 60,
@@ -374,87 +379,34 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#fff",
   },
-  menuProfileInfo: {
-    marginLeft: 15,
-  },
-  menuProfileName: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  menuProfileUsername: {
-    color: "rgba(255, 255, 255, 0.8)",
-    fontSize: 14,
-  },
-  menuItems: {
-    flex: 1,
-  },
+  menuProfileInfo: { marginLeft: 15 },
+  menuProfileName: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+  menuProfileUsername: { color: "rgba(255, 255, 255, 0.8)", fontSize: 14 },
+  menuItems: { flex: 1 },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 15,
     paddingLeft: 10,
   },
-  menuItemText: {
-    color: "#fff",
-    fontSize: 16,
-    marginLeft: 10,
-  },
-  postCard: {
-    margin: 15,
-    borderRadius: 10,
-    overflow: "hidden",
-  },
-  postGradient: {
-    padding: 15,
-    borderRadius: 10,
-  },
+  menuItemText: { color: "#fff", fontSize: 16, marginLeft: 10 },
+  postCard: { margin: 15, borderRadius: 10, overflow: "hidden" },
+  postGradient: { padding: 15, borderRadius: 10 },
   postHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  userInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
-  userTextInfo: {
-    marginLeft: 10,
-  },
-  nameContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  userName: {
-    fontWeight: "bold",
-    fontSize: 16,
-    color: "#333",
-  },
-  verifiedIcon: {
-    marginLeft: 5,
-  },
-  userHandle: {
-    color: "#666",
-    fontSize: 14,
-  },
-  moreButton: {
-    padding: 5,
-  },
-  postContent: {
-    marginVertical: 10,
-    fontSize: 16,
-    color: "#333",
-  },
-  postImage: {
-    width: "100%",
-    height: 200,
-    marginVertical: 10,
-  },
+  userInfo: { flexDirection: "row", alignItems: "center" },
+  avatar: { width: 40, height: 40, borderRadius: 20 },
+  userTextInfo: { marginLeft: 10 },
+  nameContainer: { flexDirection: "row", alignItems: "center" },
+  userName: { fontWeight: "bold", fontSize: 16, color: "#333" },
+  verifiedIcon: { marginLeft: 5 },
+  userHandle: { color: "#666", fontSize: 14 },
+  moreButton: { padding: 5 },
+  postContent: { marginVertical: 10, fontSize: 16, color: "#333" },
+  postImage: { width: "100%", height: 200, marginVertical: 10 },
   postStats: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -462,23 +414,10 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#eee",
   },
-  statButton: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  statNumber: {
-    marginLeft: 5,
-    fontSize: 14,
-    color: "#666",
-  },
-  statNumberActive: {
-    color: "#4A00E0",
-  },
-  timeStamp: {
-    fontSize: 12,
-    color: "#999",
-    marginTop: 10,
-  },
+  statButton: { flexDirection: "row", alignItems: "center" },
+  statNumber: { marginLeft: 5, fontSize: 14, color: "#666" },
+  statNumberActive: { color: "#4A00E0" },
+  timeStamp: { fontSize: 12, color: "#999", marginTop: 10 },
   navbar: {
     flexDirection: "row",
     justifyContent: "space-around",
@@ -486,13 +425,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: "#4A00E0",
   },
-  navItem: {
-    alignItems: "center",
-  },
-  activeNavItem: {
-    borderBottomWidth: 3,
-    borderBottomColor: "#fff",
-  },
+  navItem: { alignItems: "center" },
+  activeNavItem: { borderBottomWidth: 3, borderBottomColor: "#fff" },
   activeIndicator: {
     width: 5,
     height: 5,
@@ -500,14 +434,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     marginTop: 5,
   },
-  createPostButton: {
-    backgroundColor: "#fff",
-    borderRadius: 50,
-    padding: 10,
-  },
-  notificationContainer: {
-    position: "relative",
-  },
+  createPostButton: { backgroundColor: "#fff", borderRadius: 50, padding: 10 },
+  notificationContainer: { position: "relative" },
   notificationBadge: {
     position: "absolute",
     top: -5,
@@ -519,14 +447,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  notificationText: {
-    fontSize: 10,
-    color: "#fff",
-    fontWeight: "bold",
-  },
-  messageContainer: {
-    position: "relative",
-  },
+  notificationText: { fontSize: 10, color: "#fff", fontWeight: "bold" },
+  messageContainer: { position: "relative" },
   messageBadge: {
     position: "absolute",
     top: -5,
