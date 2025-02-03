@@ -1,4 +1,4 @@
-import React, { useState, useRef, useContext, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
   View,
   Text,
@@ -8,9 +8,9 @@ import {
   StyleSheet,
   StatusBar,
   Platform,
-  Animated,
   Dimensions,
   FlatList,
+  Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -27,7 +27,7 @@ const HomePage = () => {
   const { authToken, username, profilePicture, userId, logout } =
     useContext(AuthContext);
 
-  // Fetch the profile (including the profilePicture) from the backend—same as on ProfilePage.
+  // Fetch the full profile from the backend (like on ProfilePage).
   const [profile, setProfile] = useState(null);
   useEffect(() => {
     if (!userId || !authToken) return;
@@ -57,31 +57,25 @@ const HomePage = () => {
       ? `http://192.168.101.3:3001${profilePicture}`
       : "https://via.placeholder.com/100";
 
-  // Navigation and side menu logic.
+  // Navigation and sidebar state.
   const [activeTab, setActiveTab] = useState("home");
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const slideAnim = useRef(new Animated.Value(-width)).current;
+  const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const router = useRouter();
 
-  const toggleMenu = () => {
-    const toValue = isMenuOpen ? -width : 0;
-    Animated.spring(slideAnim, {
-      toValue,
-      useNativeDriver: true,
-      friction: 8,
-    }).start();
-    setIsMenuOpen(!isMenuOpen);
+  // Function to open the sidebar.
+  const openSidebar = () => {
+    setIsSidebarVisible(true);
   };
 
-  const closeMenuAndNavigate = (route) => {
-    Animated.spring(slideAnim, {
-      toValue: -width,
-      useNativeDriver: true,
-      friction: 8,
-    }).start(() => {
-      setIsMenuOpen(false);
-      router.push(route);
-    });
+  // Function to close the sidebar.
+  const closeSidebar = () => {
+    setIsSidebarVisible(false);
+  };
+
+  // This function immediately navigates and then closes the sidebar.
+  const navigateAndCloseSidebar = (route) => {
+    router.push(route);
+    closeSidebar();
   };
 
   // Dummy posts array.
@@ -106,71 +100,7 @@ const HomePage = () => {
     // Add more posts as needed.
   ];
 
-  const renderSideMenu = () => (
-    <Animated.View
-      style={[styles.sideMenu, { transform: [{ translateX: slideAnim }] }]}
-    >
-      <LinearGradient
-        colors={["#4A00E0", "#8E2DE2"]}
-        style={styles.sideMenuGradient}
-      >
-        <TouchableOpacity style={styles.closeButton} onPress={toggleMenu}>
-          <Feather name="menu" size={24} color="white" />
-        </TouchableOpacity>
-
-        {/* Side menu profile item using the backend profile picture */}
-        <TouchableOpacity
-          style={styles.menuProfile}
-          onPress={() => {
-            router.push("/ProfilePage");
-          }}
-        >
-          <Image
-            source={{ uri: profilePicUrl }}
-            style={styles.menuProfileImage}
-          />
-          <View style={styles.menuProfileInfo}>
-            <Text style={styles.menuProfileName}>
-              {username ? username : "Guest"}
-            </Text>
-            <Text style={styles.menuProfileUsername}>
-              {username ? `@${username.toLowerCase()}` : "@guest"}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        <ScrollView style={styles.menuItems}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => closeMenuAndNavigate("/StudyBuddyPage")}
-          >
-            <Feather name="user" size={24} color="white" />
-            <Text style={styles.menuItemText}>Study Buddy</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => closeMenuAndNavigate("/RoadmapPage")}
-          >
-            <Feather name="map" size={24} color="white" />
-            <Text style={styles.menuItemText}>Roadmap</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={toggleMenu}>
-            <Feather name="settings" size={24} color="white" />
-            <Text style={styles.menuItemText}>Settings</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={toggleMenu}>
-            <Feather name="info" size={24} color="white" />
-            <Text style={styles.menuItemText}>About</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={logout}>
-            <Feather name="log-out" size={24} color="white" />
-            <Text style={styles.menuItemText}>Logout</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </LinearGradient>
-    </Animated.View>
-  );
-
+  // Render a post.
   const renderPost = (post) => (
     <View style={styles.postCard} key={post.id}>
       <LinearGradient
@@ -249,11 +179,10 @@ const HomePage = () => {
         translucent={false}
       />
       <LinearGradient colors={["#4A00E0", "#8E2DE2"]} style={styles.header}>
-        <TouchableOpacity onPress={toggleMenu}>
+        <TouchableOpacity onPress={openSidebar}>
           <Feather name="menu" size={24} color="white" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Home</Text>
-        {/* Header small avatar now uses the backend profile picture */}
         <TouchableOpacity onPress={() => router.push("/ProfilePage")}>
           <Image source={{ uri: profilePicUrl }} style={styles.headerAvatar} />
         </TouchableOpacity>
@@ -261,7 +190,85 @@ const HomePage = () => {
       <ScrollView style={styles.content}>
         {posts.map((post) => renderPost(post))}
       </ScrollView>
-      {renderSideMenu()}
+      {/* Use a Modal for the sidebar so it doesn’t interfere with touches when hidden */}
+      <Modal
+        visible={isSidebarVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeSidebar}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={closeSidebar}
+        >
+          <View style={styles.sidebarContainer}>
+            <LinearGradient
+              colors={["#4A00E0", "#8E2DE2"]}
+              style={styles.sideMenuGradient}
+            >
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={closeSidebar}
+              >
+                <Feather name="menu" size={24} color="white" />
+              </TouchableOpacity>
+              {/* Sidebar profile item */}
+              <TouchableOpacity
+                style={styles.menuProfile}
+                onPress={() => navigateAndCloseSidebar("/ProfilePage")}
+              >
+                <Image
+                  source={{ uri: profilePicUrl }}
+                  style={styles.menuProfileImage}
+                />
+                <View style={styles.menuProfileInfo}>
+                  <Text style={styles.menuProfileName}>
+                    {username ? username : "Guest"}
+                  </Text>
+                  <Text style={styles.menuProfileUsername}>
+                    {username ? `@${username.toLowerCase()}` : "@guest"}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+              <ScrollView style={styles.menuItems}>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => navigateAndCloseSidebar("/StudyBuddyPage")}
+                >
+                  <Feather name="user" size={24} color="white" />
+                  <Text style={styles.menuItemText}>Study Buddy</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => navigateAndCloseSidebar("/RoadmapPage")}
+                >
+                  <Feather name="map" size={24} color="white" />
+                  <Text style={styles.menuItemText}>Roadmap</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => navigateAndCloseSidebar("/SettingsPage")}
+                >
+                  <Feather name="settings" size={24} color="white" />
+                  <Text style={styles.menuItemText}>Settings</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => navigateAndCloseSidebar("/AboutPage")}
+                >
+                  <Feather name="info" size={24} color="white" />
+                  <Text style={styles.menuItemText}>About</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.menuItem} onPress={logout}>
+                  <Feather name="log-out" size={24} color="white" />
+                  <Text style={styles.menuItemText}>Logout</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </LinearGradient>
+          </View>
+        </TouchableOpacity>
+      </Modal>
       <LinearGradient colors={["#4A00E0", "#8E2DE2"]} style={styles.navbar}>
         <TouchableOpacity
           style={[styles.navItem, activeTab === "home" && styles.activeNavItem]}
@@ -350,15 +357,7 @@ const styles = StyleSheet.create({
     borderColor: "#fff",
   },
   content: { flex: 1 },
-  sideMenu: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: width * 0.8,
-    height: height,
-    backgroundColor: "#fff",
-    zIndex: 1000,
-  },
+  sideMenu: { width: width * 0.8, height: height, backgroundColor: "#fff" },
   sideMenuGradient: {
     flex: 1,
     padding: 20,
@@ -390,6 +389,12 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
   },
   menuItemText: { color: "#fff", fontSize: 16, marginLeft: 10 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)" },
+  sidebarContainer: {
+    width: width * 0.8,
+    height: height,
+    backgroundColor: "#fff",
+  },
   postCard: { margin: 15, borderRadius: 10, overflow: "hidden" },
   postGradient: { padding: 15, borderRadius: 10 },
   postHeader: {

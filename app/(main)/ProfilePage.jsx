@@ -223,7 +223,8 @@ const ProfileScreen = () => {
         ) : null}
       </ScrollView>
 
-      <Link href=".." style={styles.backButton}>
+      {/* Updated Back Arrow: Navigates to HomePage */}
+      <Link href="/HomePage" style={styles.backButton}>
         <Text style={styles.backArrow}>←</Text>
       </Link>
     </View>
@@ -231,7 +232,6 @@ const ProfileScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  // ... (all your styles remain unchanged)
   container: {
     flex: 1,
     backgroundColor: "#fff",
