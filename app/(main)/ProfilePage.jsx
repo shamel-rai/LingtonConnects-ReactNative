@@ -22,6 +22,7 @@ const ProfileScreen = () => {
   const [posts, setPosts] = useState([]);
   const [activeTab, setActiveTab] = useState("Post");
   const [refreshing, setRefreshing] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
 
   // Fetch Profile & Posts from Backend
   const fetchProfile = async () => {
@@ -31,11 +32,53 @@ const ProfileScreen = () => {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       setProfile(response.data);
+      if ((response.data.followers, includes(userId))) {
+        setIsFollowing(true);
+      }
     } catch (error) {
       console.error(
         "Error fetching profile:",
         error.response?.data || error.message
       );
+    }
+  };
+  //handle follow and unfollow
+  const handleFollow = async () => {
+    try {
+      await apiClient.post(
+        API.profile.follow(profile._id),
+        {},
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
+
+      setIsFollowing(true);
+      setProfile((prevProfile) => ({
+        ...prevProfile,
+        followers: prevProfile.followers + 1,
+      }));
+    } catch (error) {
+      console.error("Error Following user: ", error.message);
+    }
+  };
+
+  const handleUnfollow = async () => {
+    try {
+      await apiClient.post(
+        API.profile.unfollow(profile._id),
+        {},
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
+      setIsFollowing(false);
+      setProfile((prevProfile) => ({
+        ...prevProfile,
+        followers: prevProfile.followers - 1,
+      }));
+    } catch (error) {
+      console.error("Error Unfollowing  user: ", error.message);
     }
   };
 
