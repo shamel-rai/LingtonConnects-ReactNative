@@ -328,6 +328,7 @@ const EditProfileScreen = () => {
   );
 };
 
+export default EditProfileScreen;
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   container: {
@@ -497,5 +498,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-
-export default EditProfileScreen;

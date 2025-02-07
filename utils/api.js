@@ -13,7 +13,7 @@ const API = {
     unfollow: (userId) => `${BASE_URL}/${userId}/unfollow`,
   },
   posts: {
-    getAll: () => `${BASE_URL}/posts`,
+    getAll: () => `${BASE_URL}/posts/all`,
     addPost: () => `${BASE_URL}/posts`,
     getUserPost: (userId) => `${BASE_URL}/${userId}`,
     likePost: (postId) => `${BASE_URL}/posts/${postId}/like`,

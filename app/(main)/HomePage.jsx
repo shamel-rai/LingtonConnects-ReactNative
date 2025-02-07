@@ -27,8 +27,21 @@ const HomePage = () => {
   const { authToken, username, profilePicture, userId, logout } =
     useContext(AuthContext);
 
-  // Fetch the full profile from the backend (like on ProfilePage).
+  // State for the logged-in user's profile, posts, and saved posts.
   const [profile, setProfile] = useState(null);
+  const [posts, setPosts] = useState([]);
+  const [savedPosts, setSavedPosts] = useState([]);
+
+  // Toggle save status for a post.
+  const toggleSavePost = (postId) => {
+    setSavedPosts(
+      savedPosts.includes(postId)
+        ? savedPosts.filter((id) => id !== postId)
+        : [...savedPosts, postId]
+    );
+  };
+
+  // Fetch the logged-in user's profile.
   useEffect(() => {
     if (!userId || !authToken) return;
     const fetchProfile = async () => {
@@ -44,8 +57,8 @@ const HomePage = () => {
     fetchProfile();
   }, [userId, authToken]);
 
-  // Compute full URL for the profile picture.
-  // If the backend returns a relative URL, prepend your base URL.
+  // Determine the logged-in user's profile picture URL.
+  // If the URL doesn't start with "http", prepend the backend URL.
   const profilePicUrl =
     profile && profile.profilePicture
       ? profile.profilePicture.startsWith("http")
@@ -57,7 +70,7 @@ const HomePage = () => {
       ? `http://192.168.101.3:3001${profilePicture}`
       : "https://via.placeholder.com/100";
 
-  // Navigation and sidebar state.
+  // Sidebar and navigation state.
   const [activeTab, setActiveTab] = useState("home");
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const router = useRouter();
@@ -72,39 +85,61 @@ const HomePage = () => {
     setIsSidebarVisible(false);
   };
 
-  // This function immediately navigates and then closes the sidebar.
+  // Navigate to a route and then close the sidebar.
   const navigateAndCloseSidebar = (route) => {
     router.push(route);
     closeSidebar();
   };
 
-  // Dummy posts array.
-  const posts = [
-    {
-      id: "1",
-      user: {
-        name: "Sarah Wilson",
-        username: "@sarah_wilson",
-        avatar: "https://via.placeholder.com/50",
-        isVerified: true,
-      },
-      content:
-        "Just finished my latest photography project! What do you think? 📸",
-      image: "https://via.placeholder.com/400x300",
-      likes: 1234,
-      comments: 89,
-      shares: 23,
-      time: "2h ago",
-      isLiked: true,
-    },
-    // Add more posts as needed.
-  ];
+  // Toggle the "like" state for a post.
+  const toggleLike = async (postId) => {
+    try {
+      await apiClient.post(
+        API.posts.likePost(postId),
+        {},
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
+      setPosts(
+        posts.map((post) =>
+          post._id === postId
+            ? {
+                ...post,
+                isLiked: !post.isLiked,
+                likes: post.isLiked ? post.likes - 1 : post.likes + 1,
+              }
+            : post
+        )
+      );
+    } catch (error) {
+      console.error("Error liking post; ", error);
+    }
+  };
 
-  // Render a post.
+  // Fetch posts using the getAllPost endpoint.
+  useEffect(() => {
+    const fetchPost = async () => {
+      try {
+        const response = await apiClient.get(API.posts.getAll(), {
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        // The backend returns { message: "All Post", posts: [...] }
+        // Set the posts state to the posts array.
+        setPosts(response.data.posts);
+      } catch (error) {
+        console.error("Error Fetching posts: ", error.message);
+      }
+    };
+    fetchPost();
+  }, [authToken]);
+
+  // Render a single post.
   const renderPost = (post) => (
     <View style={styles.postCard} key={post.id}>
       <LinearGradient
-        colors={["#ffffff", "#f8f8f8"]}
+        // Changed gradient colors for a slightly off-white background.
+        colors={["#fdfdfd", "#f2f2f2"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.postGradient}
@@ -114,7 +149,19 @@ const HomePage = () => {
             style={styles.userInfo}
             onPress={() => router.push("/profile")}
           >
-            <Image source={{ uri: post.user.avatar }} style={styles.avatar} />
+            {/* Display the user's profile picture with proper URL handling */}
+            <Image
+              source={{
+                uri:
+                  post.user.profilePicture &&
+                  post.user.profilePicture.startsWith("http")
+                    ? post.user.profilePicture
+                    : `http://192.168.101.3:3001${
+                        post.user.profilePicture || ""
+                      }`,
+              }}
+              style={styles.avatar}
+            />
             <View style={styles.userTextInfo}>
               <View style={styles.nameContainer}>
                 <Text style={styles.userName}>{post.user.name}</Text>
@@ -139,7 +186,11 @@ const HomePage = () => {
           <Image source={{ uri: post.image }} style={styles.postImage} />
         )}
         <View style={styles.postStats}>
-          <TouchableOpacity style={styles.statButton}>
+          {/* Like Button */}
+          <TouchableOpacity
+            style={styles.statButton}
+            onPress={() => toggleLike(post._id)}
+          >
             <Ionicons
               name={post.isLiked ? "heart" : "heart-outline"}
               size={24}
@@ -154,16 +205,35 @@ const HomePage = () => {
               {post.likes}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.statButton}>
+
+          {/* Comments Button */}
+          <TouchableOpacity
+            style={styles.statButton}
+            onPress={() => router.push(`/(main)/CommentSection/${post._id}`)}
+          >
             <Ionicons name="chatbubble-outline" size={24} color="#666" />
             <Text style={styles.statNumber}>{post.comments}</Text>
           </TouchableOpacity>
+
+          {/* Share Button */}
           <TouchableOpacity style={styles.statButton}>
             <Feather name="share-2" size={24} color="#666" />
             <Text style={styles.statNumber}>{post.shares}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.statButton}>
-            <Feather name="bookmark" size={24} color="#666" />
+
+          {/* Save Button */}
+          {/* Using Ionicons here since "bookmark-outline" is available in Ionicons but not in Feather */}
+          <TouchableOpacity
+            style={styles.statButton}
+            onPress={() => toggleSavePost(post._id)}
+          >
+            <Ionicons
+              name={
+                savedPosts.includes(post._id) ? "bookmark" : "bookmark-outline"
+              }
+              size={24}
+              color="#666"
+            />
           </TouchableOpacity>
         </View>
         <Text style={styles.timeStamp}>{post.time}</Text>
@@ -173,6 +243,7 @@ const HomePage = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header with sidebar toggle and profile navigation */}
       <StatusBar
         barStyle="light-content"
         backgroundColor="#4A00E0"
@@ -187,10 +258,16 @@ const HomePage = () => {
           <Image source={{ uri: profilePicUrl }} style={styles.headerAvatar} />
         </TouchableOpacity>
       </LinearGradient>
-      <ScrollView style={styles.content}>
-        {posts.map((post) => renderPost(post))}
-      </ScrollView>
-      {/* Use a Modal for the sidebar so it doesn’t interfere with touches when hidden */}
+
+      {/* Render posts using FlatList */}
+      <FlatList
+        data={posts}
+        keyExtractor={(item) => item._id.toString()}
+        renderItem={({ item }) => renderPost(item)}
+        showsVerticalScrollIndicator={false}
+      />
+
+      {/* Sidebar Modal */}
       <Modal
         visible={isSidebarVisible}
         animationType="slide"
@@ -213,6 +290,7 @@ const HomePage = () => {
               >
                 <Feather name="menu" size={24} color="white" />
               </TouchableOpacity>
+
               {/* Sidebar profile item */}
               <TouchableOpacity
                 style={styles.menuProfile}
@@ -269,6 +347,8 @@ const HomePage = () => {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Bottom Navigation Bar */}
       <LinearGradient colors={["#4A00E0", "#8E2DE2"]} style={styles.navbar}>
         <TouchableOpacity
           style={[styles.navItem, activeTab === "home" && styles.activeNavItem]}
@@ -339,8 +419,11 @@ const HomePage = () => {
   );
 };
 
+export default HomePage;
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  // Container background set to a slightly off-white tone.
+  container: { flex: 1, backgroundColor: "#f7f7f7" },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -395,7 +478,8 @@ const styles = StyleSheet.create({
     height: height,
     backgroundColor: "#fff",
   },
-  postCard: { margin: 15, borderRadius: 10, overflow: "hidden" },
+  // Reduced margin to reduce the gap between posts.
+  postCard: { margin: 10, borderRadius: 10, overflow: "hidden" },
   postGradient: { padding: 15, borderRadius: 10 },
   postHeader: {
     flexDirection: "row",
@@ -466,5 +550,3 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 });
-
-export default HomePage;

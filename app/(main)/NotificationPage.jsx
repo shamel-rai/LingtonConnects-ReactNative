@@ -231,6 +231,8 @@ const NotificationSystem = () => {
   );
 };
 
+export default NotificationSystem;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -340,5 +342,3 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
 });
-
-export default NotificationSystem;

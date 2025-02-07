@@ -32,7 +32,7 @@ const ProfileScreen = () => {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       setProfile(response.data);
-      if ((response.data.followers, includes(userId))) {
+      if (response.data.followers && response.data.followers.includes(userId)) {
         setIsFollowing(true);
       }
     } catch (error) {
@@ -42,6 +42,7 @@ const ProfileScreen = () => {
       );
     }
   };
+
   //handle follow and unfollow
   const handleFollow = async () => {
     try {
@@ -78,7 +79,7 @@ const ProfileScreen = () => {
         followers: prevProfile.followers - 1,
       }));
     } catch (error) {
-      console.error("Error Unfollowing  user: ", error.message);
+      console.error("Error Unfollowing user: ", error.message);
     }
   };
 

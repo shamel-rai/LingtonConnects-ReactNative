@@ -17,13 +17,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const THEME = {
-    primary: ['#00F5A0', '#00D9F5'],
-    secondary: ['#7A88FF', '#FD71AF'],
-    optional: ['#FF8F71', '#FF3D77'],
-    background: '#0A1128',
-    cardBg: '#1A2138',
-    textPrimary: '#FFFFFF',
-    textSecondary: '#B0B7C3',
+    primary: ['#4A00E0', '#8E2DE2'],
+    background: '#fff',
+    textPrimary: '#333',
+    textSecondary: '#666',
+    cardBg: '#f8f8f8',
 };
 
 const PostCreatePage = ({ navigation }) => {
@@ -36,13 +34,13 @@ const PostCreatePage = ({ navigation }) => {
         const options = {
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             quality: 1,
-            allowsMultipleSelection: true, // For Expo, you may implement manual multiple selection.
+            allowsMultipleSelection: true,
         };
 
         try {
             const result = await ImagePicker.launchImageLibraryAsync(options);
             if (!result.canceled) {
-                setSelectedImages(prev => [...prev, ...result.assets.map(asset => asset.uri)].slice(0, 4)); // Limit to 4 images
+                setSelectedImages(prev => [...prev, ...result.assets.map(asset => asset.uri)].slice(0, 4));
             }
         } catch (error) {
             console.error('Error picking image:', error);
@@ -58,15 +56,12 @@ const PostCreatePage = ({ navigation }) => {
 
         setIsLoading(true);
         try {
-            // Simulate API call
             await new Promise(resolve => setTimeout(resolve, 1500));
 
-            // Reset form
             setPostText('');
             setSelectedImages([]);
             setLocation('');
 
-            // Navigate back
             navigation.goBack();
         } catch (error) {
             console.error('Error creating post:', error);
@@ -81,12 +76,12 @@ const PostCreatePage = ({ navigation }) => {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.container}
             >
-                <View style={styles.header}>
+                <LinearGradient colors={THEME.primary} style={styles.header}>
                     <TouchableOpacity
                         onPress={() => navigation.goBack()}
                         style={styles.headerButton}
                     >
-                        <Icon name="x" size={24} color={THEME.textPrimary} />
+                        <Icon name="x" size={24} color="white" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Create Post</Text>
                     <TouchableOpacity
@@ -100,7 +95,7 @@ const PostCreatePage = ({ navigation }) => {
                             <Text style={styles.postButtonText}>Post</Text>
                         )}
                     </TouchableOpacity>
-                </View>
+                </LinearGradient>
 
                 <ScrollView style={styles.content}>
                     <View style={styles.userInfo}>
@@ -138,7 +133,7 @@ const PostCreatePage = ({ navigation }) => {
                                         onPress={() => removeImage(index)}
                                     >
                                         <LinearGradient
-                                            colors={THEME.optional}
+                                            colors={['#FF4C4C', '#FF1E1E']}
                                             style={styles.removeImageGradient}
                                         >
                                             <Icon name="x" size={16} color="#FFF" />
@@ -160,22 +155,22 @@ const PostCreatePage = ({ navigation }) => {
                             style={styles.footerButton}
                             onPress={pickImage}
                         >
-                            <Icon name="image" size={24} color={THEME.primary[0]} />
+                            <Icon name="image" size={24} color="#4A00E0" />
                             <Text style={styles.footerButtonText}>Photo</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.footerButton}>
-                            <Icon name="video" size={24} color={THEME.secondary[0]} />
+                            <Icon name="video" size={24} color="#8E2DE2" />
                             <Text style={styles.footerButtonText}>Video</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.footerButton}>
-                            <Icon name="map-pin" size={24} color={THEME.optional[0]} />
+                            <Icon name="map-pin" size={24} color="#FF4C4C" />
                             <Text style={styles.footerButtonText}>Location</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.footerButton}>
-                            <Icon name="users" size={24} color={THEME.primary[1]} />
+                            <Icon name="users" size={24} color="#4A00E0" />
                             <Text style={styles.footerButtonText}>Tag People</Text>
                         </TouchableOpacity>
                     </ScrollView>
@@ -195,8 +190,6 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: THEME.cardBg,
     },
     headerButton: {
         padding: 8,
@@ -204,10 +197,10 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: THEME.textPrimary,
+        color: 'white',
     },
     postButton: {
-        backgroundColor: THEME.primary[0],
+        backgroundColor: 'white',
         paddingHorizontal: 20,
         paddingVertical: 8,
         borderRadius: 20,
@@ -216,7 +209,7 @@ const styles = StyleSheet.create({
         opacity: 0.5,
     },
     postButtonText: {
-        color: THEME.background,
+        color: '#4A00E0',
         fontWeight: '600',
     },
     content: {
@@ -289,7 +282,7 @@ const styles = StyleSheet.create({
     },
     footer: {
         borderTopWidth: 1,
-        borderTopColor: THEME.cardBg,
+        borderTopColor: '#eee',
         padding: 16,
     },
     footerContent: {
