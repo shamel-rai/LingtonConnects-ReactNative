@@ -41,6 +41,8 @@ const EditProfileScreen = () => {
   const router = useRouter();
   const { userId, authToken } = useContext(AuthContext);
 
+  const ASSET_BASEURL = 'http://192.168.101.5:3001'
+
   const availableInterests = [
     "Frontend",
     "Backend",
@@ -168,7 +170,7 @@ const EditProfileScreen = () => {
         setProfileImage(
           uploadedImageUrl.startsWith("http")
             ? uploadedImageUrl
-            : `http://192.168.101.3:3001${uploadedImageUrl}`
+            : `${ASSET_BASEURL}${uploadedImageUrl}`
         );
       } else {
         console.log("ℹ️ No profile image update needed.");
@@ -226,8 +228,8 @@ const EditProfileScreen = () => {
                     profileImage.startsWith("data:")
                     ? profileImage
                     : profileImage.startsWith("http")
-                    ? profileImage
-                    : `http://192.168.101.3:3001${profileImage}`
+                      ? profileImage
+                      : `${ASSET_BASEURL}${profileImage}`
                   : "https://via.placeholder.com/150",
               }}
               style={styles.profileImage}

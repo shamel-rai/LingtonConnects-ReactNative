@@ -15,22 +15,24 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { AuthContext } from "@/Context/AuthContext";
 import API from "../../utils/api";
 import apiClient from "../../utils/axiosSetup";
 
 const { width, height } = Dimensions.get("window");
+const ASSET_BASEURL = `http://192.168.101.5:3001`;
 
 const HomePage = () => {
-  // Get auth details from AuthContext.
-  const { authToken, username, profilePicture, userId, logout } =
-    useContext(AuthContext);
+  // Get auth details and refresh parameter from context and router.
+  const { authToken, username, profilePicture, userId, logout } = useContext(AuthContext);
+  const { refresh } = useLocalSearchParams();
 
-  // State for the logged-in user's profile, posts, and saved posts.
+  // State for profile, posts, saved posts, and loading.
   const [profile, setProfile] = useState(null);
   const [posts, setPosts] = useState([]);
   const [savedPosts, setSavedPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // Toggle save status for a post.
   const toggleSavePost = (postId) => {
@@ -51,94 +53,86 @@ const HomePage = () => {
         });
         setProfile(response.data);
       } catch (err) {
-        console.error("Error fetching profile in HomePage:", err);
+        console.error("Error fetching profile:", err);
       }
     };
     fetchProfile();
   }, [userId, authToken]);
 
-  // Determine the logged-in user's profile picture URL.
-  // If the URL doesn't start with "http", prepend the backend URL.
+  // Fetch posts whenever authToken or refresh changes.
+  useEffect(() => {
+    const fetchPosts = async () => {
+      setLoading(true);
+      try {
+        const response = await apiClient.get(API.posts.getAll(), {
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        // Optional: Sort posts by creation date (if available) so the newest is first.
+        const sortedPosts = response.data.posts.sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+        setPosts(sortedPosts);
+      } catch (error) {
+        console.error("Error fetching posts:", error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPosts();
+  }, [authToken, refresh]);
+
+  // Determine the correct profile picture URL.
   const profilePicUrl =
     profile && profile.profilePicture
       ? profile.profilePicture.startsWith("http")
         ? profile.profilePicture
-        : `http://192.168.101.3:3001${profile.profilePicture}`
+        : `${ASSET_BASEURL}${profile.profilePicture}`
       : profilePicture && profilePicture.startsWith("http")
-      ? profilePicture
-      : profilePicture
-      ? `http://192.168.101.3:3001${profilePicture}`
-      : "https://via.placeholder.com/100";
+        ? profilePicture
+        : profilePicture
+          ? `${ASSET_BASEURL}${profilePicture}`
+          : "https://via.placeholder.com/100";
 
   // Sidebar and navigation state.
   const [activeTab, setActiveTab] = useState("home");
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const router = useRouter();
 
-  // Function to open the sidebar.
-  const openSidebar = () => {
-    setIsSidebarVisible(true);
-  };
-
-  // Function to close the sidebar.
-  const closeSidebar = () => {
-    setIsSidebarVisible(false);
-  };
-
-  // Navigate to a route and then close the sidebar.
+  const openSidebar = () => setIsSidebarVisible(true);
+  const closeSidebar = () => setIsSidebarVisible(false);
   const navigateAndCloseSidebar = (route) => {
-    router.push(route);
     closeSidebar();
+    router.push(route);
   };
 
-  // Toggle the "like" state for a post.
+  // Toggle the "like" status for a post.
   const toggleLike = async (postId) => {
     try {
       await apiClient.post(
         API.posts.likePost(postId),
         {},
-        {
-          headers: { Authorization: `Bearer ${authToken}` },
-        }
+        { headers: { Authorization: `Bearer ${authToken}` } }
       );
-      setPosts(
-        posts.map((post) =>
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
           post._id === postId
             ? {
-                ...post,
-                isLiked: !post.isLiked,
-                likes: post.isLiked ? post.likes - 1 : post.likes + 1,
-              }
+              ...post,
+              isLiked: !post.isLiked,
+              likes: post.isLiked ? post.likes - 1 : post.likes + 1,
+            }
             : post
         )
       );
     } catch (error) {
-      console.error("Error liking post; ", error);
+      console.error("Error liking post:", error);
     }
   };
-
-  // Fetch posts using the getAllPost endpoint.
-  useEffect(() => {
-    const fetchPost = async () => {
-      try {
-        const response = await apiClient.get(API.posts.getAll(), {
-          headers: { Authorization: `Bearer ${authToken}` },
-        });
-        // The backend returns { message: "All Post", posts: [...] }
-        // Set the posts state to the posts array.
-        setPosts(response.data.posts);
-      } catch (error) {
-        console.error("Error Fetching posts: ", error.message);
-      }
-    };
-    fetchPost();
-  }, [authToken]);
 
   // Render a single post.
   const renderPost = (post) => (
     <View style={styles.postCard} key={post.id}>
       <LinearGradient
-        // Changed gradient colors for a slightly off-white background.
         colors={["#fdfdfd", "#f2f2f2"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -149,16 +143,13 @@ const HomePage = () => {
             style={styles.userInfo}
             onPress={() => router.push("/profile")}
           >
-            {/* Display the user's profile picture with proper URL handling */}
             <Image
               source={{
                 uri:
                   post.user.profilePicture &&
-                  post.user.profilePicture.startsWith("http")
+                    post.user.profilePicture.startsWith("http")
                     ? post.user.profilePicture
-                    : `http://192.168.101.3:3001${
-                        post.user.profilePicture || ""
-                      }`,
+                    : `${ASSET_BASEURL}${post.user.profilePicture || ""}`,
               }}
               style={styles.avatar}
             />
@@ -186,7 +177,6 @@ const HomePage = () => {
           <Image source={{ uri: post.image }} style={styles.postImage} />
         )}
         <View style={styles.postStats}>
-          {/* Like Button */}
           <TouchableOpacity
             style={styles.statButton}
             onPress={() => toggleLike(post._id)}
@@ -205,8 +195,6 @@ const HomePage = () => {
               {post.likes}
             </Text>
           </TouchableOpacity>
-
-          {/* Comments Button */}
           <TouchableOpacity
             style={styles.statButton}
             onPress={() => router.push(`/(main)/CommentSection/${post._id}`)}
@@ -214,15 +202,10 @@ const HomePage = () => {
             <Ionicons name="chatbubble-outline" size={24} color="#666" />
             <Text style={styles.statNumber}>{post.comments}</Text>
           </TouchableOpacity>
-
-          {/* Share Button */}
           <TouchableOpacity style={styles.statButton}>
             <Feather name="share-2" size={24} color="#666" />
             <Text style={styles.statNumber}>{post.shares}</Text>
           </TouchableOpacity>
-
-          {/* Save Button */}
-          {/* Using Ionicons here since "bookmark-outline" is available in Ionicons but not in Feather */}
           <TouchableOpacity
             style={styles.statButton}
             onPress={() => toggleSavePost(post._id)}
@@ -243,7 +226,6 @@ const HomePage = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header with sidebar toggle and profile navigation */}
       <StatusBar
         barStyle="light-content"
         backgroundColor="#4A00E0"
@@ -259,7 +241,6 @@ const HomePage = () => {
         </TouchableOpacity>
       </LinearGradient>
 
-      {/* Render posts using FlatList */}
       <FlatList
         data={posts}
         keyExtractor={(item) => item._id.toString()}
@@ -267,7 +248,6 @@ const HomePage = () => {
         showsVerticalScrollIndicator={false}
       />
 
-      {/* Sidebar Modal */}
       <Modal
         visible={isSidebarVisible}
         animationType="slide"
@@ -290,8 +270,6 @@ const HomePage = () => {
               >
                 <Feather name="menu" size={24} color="white" />
               </TouchableOpacity>
-
-              {/* Sidebar profile item */}
               <TouchableOpacity
                 style={styles.menuProfile}
                 onPress={() => navigateAndCloseSidebar("/ProfilePage")}
@@ -348,7 +326,6 @@ const HomePage = () => {
         </TouchableOpacity>
       </Modal>
 
-      {/* Bottom Navigation Bar */}
       <LinearGradient colors={["#4A00E0", "#8E2DE2"]} style={styles.navbar}>
         <TouchableOpacity
           style={[styles.navItem, activeTab === "home" && styles.activeNavItem]}
@@ -358,10 +335,7 @@ const HomePage = () => {
           {activeTab === "home" && <View style={styles.activeIndicator} />}
         </TouchableOpacity>
         <TouchableOpacity
-          style={[
-            styles.navItem,
-            activeTab === "search" && styles.activeNavItem,
-          ]}
+          style={[styles.navItem, activeTab === "search" && styles.activeNavItem]}
           onPress={() => {
             setActiveTab("search");
             router.push("/SearchPage");
@@ -371,10 +345,7 @@ const HomePage = () => {
           {activeTab === "search" && <View style={styles.activeIndicator} />}
         </TouchableOpacity>
         <TouchableOpacity
-          style={[
-            styles.navItem,
-            activeTab === "create" && styles.activeNavItem,
-          ]}
+          style={[styles.navItem, activeTab === "create" && styles.activeNavItem]}
           onPress={() => router.push("/PostPage")}
         >
           <View style={styles.createPostButton}>
@@ -383,10 +354,7 @@ const HomePage = () => {
           {activeTab === "create" && <View style={styles.activeIndicator} />}
         </TouchableOpacity>
         <TouchableOpacity
-          style={[
-            styles.navItem,
-            activeTab === "notifications" && styles.activeNavItem,
-          ]}
+          style={[styles.navItem, activeTab === "notifications" && styles.activeNavItem]}
           onPress={() => router.push("/NotificationPage")}
         >
           <View style={styles.notificationContainer}>
@@ -395,15 +363,10 @@ const HomePage = () => {
               <Text style={styles.notificationText}>3</Text>
             </View>
           </View>
-          {activeTab === "notifications" && (
-            <View style={styles.activeIndicator} />
-          )}
+          {activeTab === "notifications" && <View style={styles.activeIndicator} />}
         </TouchableOpacity>
         <TouchableOpacity
-          style={[
-            styles.navItem,
-            activeTab === "messages" && styles.activeNavItem,
-          ]}
+          style={[styles.navItem, activeTab === "messages" && styles.activeNavItem]}
           onPress={() => setActiveTab("messages")}
         >
           <View style={styles.messageContainer}>
@@ -422,7 +385,6 @@ const HomePage = () => {
 export default HomePage;
 
 const styles = StyleSheet.create({
-  // Container background set to a slightly off-white tone.
   container: { flex: 1, backgroundColor: "#f7f7f7" },
   header: {
     flexDirection: "row",
@@ -439,7 +401,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#fff",
   },
-  content: { flex: 1 },
   sideMenu: { width: width * 0.8, height: height, backgroundColor: "#fff" },
   sideMenuGradient: {
     flex: 1,
@@ -478,7 +439,6 @@ const styles = StyleSheet.create({
     height: height,
     backgroundColor: "#fff",
   },
-  // Reduced margin to reduce the gap between posts.
   postCard: { margin: 10, borderRadius: 10, overflow: "hidden" },
   postGradient: { padding: 15, borderRadius: 10 },
   postHeader: {

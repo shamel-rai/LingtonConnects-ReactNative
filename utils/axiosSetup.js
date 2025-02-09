@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const apiClient = axios.create({
-  baseURL: "http://192.168.101.3:3001/api/v1",
+  baseURL: "http://192.168.101.5:3001/api/v1",
 });
 
 export const setAuthInterceptor = (onTokenExpire) => {

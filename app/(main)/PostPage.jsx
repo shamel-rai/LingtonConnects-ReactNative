@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -15,6 +15,10 @@ import {
 import { Feather as Icon } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
+import { AuthContext } from '../../Context/AuthContext';
+import API from '../../utils/api';
+import apiClient from '../../utils/axiosSetup';
+import { useRouter } from 'expo-router';
 
 const THEME = {
     primary: ['#4A00E0', '#8E2DE2'],
@@ -24,11 +28,36 @@ const THEME = {
     cardBg: '#f8f8f8',
 };
 
-const PostCreatePage = ({ navigation }) => {
+const ASSET_BASEURL = "http://192.168.101.5:3001";
+
+const PostCreatePage = () => {
     const [postText, setPostText] = useState('');
     const [selectedImages, setSelectedImages] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [location, setLocation] = useState('');
+    const { userId, authToken, username } = useContext(AuthContext);
+    const [profilePicture, setProfileImage] = useState(null);
+    const [displayName, setDisplayname] = useState(null);
+
+    const router = useRouter();
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            try {
+                console.log("Fetching profile for:", userId);
+                const response = await apiClient.get(API.profile.get(userId), {
+                    headers: { Authorization: `Bearer ${authToken}` },
+                });
+                const user = response.data;
+                console.log("User data in post:", user);
+                setDisplayname(user.displayName);
+                setProfileImage(user.profilePicture);
+            } catch (error) {
+                console.error("Error fetching profile:", error);
+            }
+        };
+        if (userId) fetchProfile();
+    }, [userId]);
 
     const pickImage = async () => {
         const options = {
@@ -40,7 +69,12 @@ const PostCreatePage = ({ navigation }) => {
         try {
             const result = await ImagePicker.launchImageLibraryAsync(options);
             if (!result.canceled) {
-                setSelectedImages(prev => [...prev, ...result.assets.map(asset => asset.uri)].slice(0, 4));
+                setSelectedImages(prev =>
+                    [
+                        ...prev,
+                        ...result.assets.map((asset) => asset.uri),
+                    ].slice(0, 4)
+                );
             }
         } catch (error) {
             console.error('Error picking image:', error);
@@ -52,23 +86,57 @@ const PostCreatePage = ({ navigation }) => {
     };
 
     const handlePost = async () => {
-        if (!postText.trim() && selectedImages.length === 0) return;
+        if (!postText.trim() && selectedImages.length === 0) {
+            console.error("Post content is empty, nothing to submit.");
+            return;
+        }
 
         setIsLoading(true);
         try {
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            const formData = new FormData();
+            formData.append("content", postText.trim());
+            formData.append("location", location || "");
 
-            setPostText('');
+            // Append each image file to FormData
+            selectedImages.forEach((uri) => {
+                let filename = uri.split('/').pop();
+                let match = /\.(\w+)$/.exec(filename);
+                let type = match ? `image/${match[1]}` : `image/jpeg`;
+
+                // Use "media" as the field name (or "media[]" if your backend expects that)
+                formData.append('media', {
+                    uri: uri.startsWith('file://') ? uri : `file://${uri}`,
+                    name: filename,
+                    type: type,
+                });
+            });
+
+            console.log("Sending formData via fetch:", formData);
+
+            const res = await fetch(API.posts.addPost(), {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${authToken}`,
+                    // Note: Do NOT set the "Content-Type" header manually.
+                },
+                body: formData,
+            });
+
+            const json = await res.json();
+            console.log("Post Created:", json);
+
+            // Reset the form fields and navigate home
+            setPostText("");
             setSelectedImages([]);
-            setLocation('');
-
-            navigation.goBack();
+            setLocation("");
+            router.push({ pathname: "/", params: { refresh: Date.now() } });
         } catch (error) {
-            console.error('Error creating post:', error);
+            console.error("Fetch error:", error);
         } finally {
             setIsLoading(false);
         }
     };
+
 
     return (
         <SafeAreaView style={styles.container}>
@@ -77,17 +145,14 @@ const PostCreatePage = ({ navigation }) => {
                 style={styles.container}
             >
                 <LinearGradient colors={THEME.primary} style={styles.header}>
-                    <TouchableOpacity
-                        onPress={() => navigation.goBack()}
-                        style={styles.headerButton}
-                    >
+                    <TouchableOpacity onPress={() => router.push("/HomePage")} style={styles.headerButton}>
                         <Icon name="x" size={24} color="white" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Create Post</Text>
                     <TouchableOpacity
-                        style={[styles.postButton, !postText.trim() && !selectedImages.length && styles.disabledButton]}
+                        style={[styles.postButton, (!postText.trim() && !selectedImages.length) && styles.disabledButton]}
                         onPress={handlePost}
-                        disabled={!postText.trim() && !selectedImages.length || isLoading}
+                        disabled={(!postText.trim() && !selectedImages.length) || isLoading}
                     >
                         {isLoading ? (
                             <ActivityIndicator color="#FFF" size="small" />
@@ -100,11 +165,12 @@ const PostCreatePage = ({ navigation }) => {
                 <ScrollView style={styles.content}>
                     <View style={styles.userInfo}>
                         <Image
-                            source={{ uri: 'https://via.placeholder.com/50' }}
+                            source={{ uri: profilePicture || "https://via.placeholder.com/50" }}
                             style={styles.avatar}
                         />
                         <View>
-                            <Text style={styles.username}>Your Name</Text>
+                            <Text style={styles.username}>{displayName || "Guest"}</Text>
+                            <Text style={styles.usernameTag}>@{username}</Text>
                             {location ? (
                                 <View style={styles.locationContainer}>
                                     <Icon name="map-pin" size={12} color={THEME.textSecondary} />
@@ -128,14 +194,8 @@ const PostCreatePage = ({ navigation }) => {
                             {selectedImages.map((uri, index) => (
                                 <View key={index} style={styles.imageContainer}>
                                     <Image source={{ uri }} style={styles.selectedImage} />
-                                    <TouchableOpacity
-                                        style={styles.removeImageButton}
-                                        onPress={() => removeImage(index)}
-                                    >
-                                        <LinearGradient
-                                            colors={['#FF4C4C', '#FF1E1E']}
-                                            style={styles.removeImageGradient}
-                                        >
+                                    <TouchableOpacity style={styles.removeImageButton} onPress={() => removeImage(index)}>
+                                        <LinearGradient colors={['#FF4C4C', '#FF1E1E']} style={styles.removeImageGradient}>
                                             <Icon name="x" size={16} color="#FFF" />
                                         </LinearGradient>
                                     </TouchableOpacity>
@@ -146,15 +206,8 @@ const PostCreatePage = ({ navigation }) => {
                 </ScrollView>
 
                 <View style={styles.footer}>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.footerContent}
-                    >
-                        <TouchableOpacity
-                            style={styles.footerButton}
-                            onPress={pickImage}
-                        >
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.footerContent}>
+                        <TouchableOpacity style={styles.footerButton} onPress={pickImage}>
                             <Icon name="image" size={24} color="#4A00E0" />
                             <Text style={styles.footerButtonText}>Photo</Text>
                         </TouchableOpacity>
@@ -179,6 +232,8 @@ const PostCreatePage = ({ navigation }) => {
         </SafeAreaView>
     );
 };
+
+export default PostCreatePage;
 
 const styles = StyleSheet.create({
     container: {
@@ -231,6 +286,10 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         color: THEME.textPrimary,
+    },
+    usernameTag: {
+        fontSize: 14,
+        color: THEME.textSecondary,
     },
     locationContainer: {
         flexDirection: 'row',
@@ -298,5 +357,3 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
 });
-
-export default PostCreatePage;

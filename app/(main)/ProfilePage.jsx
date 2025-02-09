@@ -16,6 +16,8 @@ import { AuthContext } from "../../Context/AuthContext";
 import API from "../../utils/api";
 import apiClient from "../../utils/axiosSetup";
 
+const ASSET_BASEURL = `http://192.168.101.5:3001`; 
+
 const ProfileScreen = () => {
   const { userId, authToken } = useContext(AuthContext);
   const [profile, setProfile] = useState(null);
@@ -116,7 +118,7 @@ const ProfileScreen = () => {
   const profilePictureUrl = profile?.profilePicture
     ? profile.profilePicture.startsWith("http")
       ? profile.profilePicture
-      : `http://192.168.101.3:3001${profile.profilePicture}`
+      : `${ASSET_BASEURL}${profile.profilePicture}`
     : "https://via.placeholder.com/150";
 
   console.log("Computed profilePictureUrl:", profilePictureUrl);
