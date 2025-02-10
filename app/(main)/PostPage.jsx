@@ -49,6 +49,7 @@ const PostCreatePage = () => {
                     headers: { Authorization: `Bearer ${authToken}` },
                 });
                 const user = response.data;
+                console.log("fetching the profile for the post page: ", user.profilePicture)
                 console.log("User data in post:", user);
                 setDisplayname(user.displayName);
                 setProfileImage(user.profilePicture);
@@ -85,6 +86,7 @@ const PostCreatePage = () => {
         setSelectedImages(prev => prev.filter((_, i) => i !== index));
     };
 
+    // -------------------------------------- handling post --------------------------------------------
     const handlePost = async () => {
         if (!postText.trim() && selectedImages.length === 0) {
             console.error("Post content is empty, nothing to submit.");
@@ -97,33 +99,32 @@ const PostCreatePage = () => {
             formData.append("content", postText.trim());
             formData.append("location", location || "");
 
-            // Append each image file to FormData
+            // Append each image file correctly
             selectedImages.forEach((uri) => {
                 let filename = uri.split('/').pop();
                 let match = /\.(\w+)$/.exec(filename);
                 let type = match ? `image/${match[1]}` : `image/jpeg`;
 
-                // Use "media" as the field name (or "media[]" if your backend expects that)
                 formData.append('media', {
-                    uri: uri.startsWith('file://') ? uri : `file://${uri}`,
+                    uri: uri,
                     name: filename,
                     type: type,
                 });
             });
 
-            console.log("Sending formData via fetch:", formData);
+            console.log("🚀 Sending formData:", formData);
 
             const res = await fetch(API.posts.addPost(), {
                 method: "POST",
                 headers: {
                     Authorization: `Bearer ${authToken}`,
-                    // Note: Do NOT set the "Content-Type" header manually.
+                    "Content-Type": "multipart/form-data", // Explicitly set Content-Type
                 },
                 body: formData,
             });
 
             const json = await res.json();
-            console.log("Post Created:", json);
+            console.log("✅ Post Created:", json);
 
             // Reset the form fields and navigate home
             setPostText("");
@@ -131,7 +132,7 @@ const PostCreatePage = () => {
             setLocation("");
             router.push({ pathname: "/", params: { refresh: Date.now() } });
         } catch (error) {
-            console.error("Fetch error:", error);
+            console.error("❌ Fetch error:", error);
         } finally {
             setIsLoading(false);
         }
@@ -163,11 +164,20 @@ const PostCreatePage = () => {
                 </LinearGradient>
 
                 <ScrollView style={styles.content}>
+                    {/* -------------------------------User information----------------------------------------- */}
                     <View style={styles.userInfo}>
                         <Image
-                            source={{ uri: profilePicture || "https://via.placeholder.com/50" }}
+                            source={{
+                                uri: profilePicture
+                                    ? (profilePicture.startsWith("http")
+                                        ? profilePicture
+                                        : `${ASSET_BASEURL}${profilePicture}`)
+                                    : "https://via.placeholder.com/100",
+                            }}
                             style={styles.avatar}
                         />
+                        {/* ------------------------------------------------------------------------------------------- */}
+
                         <View>
                             <Text style={styles.username}>{displayName || "Guest"}</Text>
                             <Text style={styles.usernameTag}>@{username}</Text>

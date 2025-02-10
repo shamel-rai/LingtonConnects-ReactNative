@@ -67,11 +67,8 @@ const HomePage = () => {
         const response = await apiClient.get(API.posts.getAll(), {
           headers: { Authorization: `Bearer ${authToken}` },
         });
-        // Optional: Sort posts by creation date (if available) so the newest is first.
-        const sortedPosts = response.data.posts.sort(
-          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-        );
-        setPosts(sortedPosts);
+        console.log("Fetched Posts:", JSON.stringify(response.data, null, 2));
+        setPosts(response.data.posts);
       } catch (error) {
         console.error("Error fetching posts:", error.message);
       } finally {
@@ -80,6 +77,7 @@ const HomePage = () => {
     };
     fetchPosts();
   }, [authToken, refresh]);
+
 
   // Determine the correct profile picture URL.
   const profilePicUrl =
@@ -172,10 +170,24 @@ const HomePage = () => {
             <Feather name="more-horizontal" size={24} color="#666" />
           </TouchableOpacity>
         </View>
+        {/* ----------------------------------homepage content--------------------------------------------- */}
         <Text style={styles.postContent}>{post.content}</Text>
-        {post.image && (
-          <Image source={{ uri: post.image }} style={styles.postImage} />
+        {post.media && post.media.length > 0 && (
+          <Image
+            source={{
+              uri: `${ASSET_BASEURL}/${post.media[0]}` || "https://via.placeholder.com/200",
+            }}
+            style={{
+              width: "100%",
+              height: undefined, // Auto-adjusts based on aspect ratio
+              aspectRatio: 0.75, // Ensures proper scaling
+              resizeMode: "cover", // Covers the full container
+            }}
+            onError={(error) => console.log("Image Load Error:", error.nativeEvent)}
+          />
         )}
+
+
         <View style={styles.postStats}>
           <TouchableOpacity
             style={styles.statButton}
