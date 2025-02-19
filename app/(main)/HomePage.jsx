@@ -17,11 +17,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { AuthContext } from "@/Context/AuthContext";
+import { Video } from "expo-av"
 import API from "../../utils/api";
 import apiClient from "../../utils/axiosSetup";
 
 const { width, height } = Dimensions.get("window");
-const ASSET_BASEURL = `http://192.168.101.5:3001`;
+const ASSET_BASEURL = `http://192.168.101.8:3001`;
 
 const HomePage = () => {
   // Get auth details and refresh parameter from context and router.
@@ -78,7 +79,6 @@ const HomePage = () => {
     fetchPosts();
   }, [authToken, refresh]);
 
-
   // Determine the correct profile picture URL.
   const profilePicUrl =
     profile && profile.profilePicture
@@ -128,113 +128,143 @@ const HomePage = () => {
   };
 
   // Render a single post.
-  const renderPost = (post) => (
-    <View style={styles.postCard} key={post.id}>
-      <LinearGradient
-        colors={["#fdfdfd", "#f2f2f2"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.postGradient}
-      >
-        <View style={styles.postHeader}>
-          <TouchableOpacity
-            style={styles.userInfo}
-            onPress={() => router.push("/profile")}
-          >
-            <Image
-              source={{
-                uri:
-                  post.user.profilePicture &&
-                    post.user.profilePicture.startsWith("http")
-                    ? post.user.profilePicture
-                    : `${ASSET_BASEURL}${post.user.profilePicture || ""}`,
-              }}
-              style={styles.avatar}
-            />
-            <View style={styles.userTextInfo}>
-              <View style={styles.nameContainer}>
-                <Text style={styles.userName}>{post.user.name}</Text>
-                {post.user.isVerified && (
-                  <MaterialCommunityIcons
-                    name="check-decagram"
-                    size={16}
-                    color="#4A00E0"
-                    style={styles.verifiedIcon}
-                  />
-                )}
-              </View>
-              <Text style={styles.userHandle}>{post.user.username}</Text>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.moreButton}>
-            <Feather name="more-horizontal" size={24} color="#666" />
-          </TouchableOpacity>
-        </View>
-        {/* ----------------------------------homepage content--------------------------------------------- */}
-        <Text style={styles.postContent}>{post.content}</Text>
-        {post.media && post.media.length > 0 && (
-          <Image
-            source={{
-              uri: `${ASSET_BASEURL}/${post.media[0]}` || "https://via.placeholder.com/200",
-            }}
-            style={{
-              width: "100%",
-              height: undefined, // Auto-adjusts based on aspect ratio
-              aspectRatio: 0.75, // Ensures proper scaling
-              resizeMode: "cover", // Covers the full container
-            }}
-            onError={(error) => console.log("Image Load Error:", error.nativeEvent)}
-          />
-        )}
+  const renderPost = (post) => {
+    const mediaUrl = `${ASSET_BASEURL}/${post.media[0]}`;
+    const videoExtensions = [".mp4", ".wmv", ".flv", ".mkv"];
+    const isVideo = videoExtensions.some((ext) =>
+      mediaUrl.toLowerCase().endsWith(ext)
+    );
 
+    // Build a fallback display name if the user doesn't have one.
+    const fallbackName = post.user.displayName
+      ? post.user.displayName
+      : post.user.name
+        ? post.user.name
+        : post.user.username;
 
-        <View style={styles.postStats}>
-          <TouchableOpacity
-            style={styles.statButton}
-            onPress={() => toggleLike(post._id)}
-          >
-            <Ionicons
-              name={post.isLiked ? "heart" : "heart-outline"}
-              size={24}
-              color={post.isLiked ? "#4A00E0" : "#666"}
-            />
-            <Text
-              style={[
-                styles.statNumber,
-                post.isLiked && styles.statNumberActive,
-              ]}
+    return (
+      <View style={styles.postCard} key={post._id}>
+        <LinearGradient
+          colors={["#fdfdfd", "#f2f2f2"]}
+          style={styles.postGradient}
+        >
+          {/* Post Header */}
+          <View style={styles.postHeader}>
+            <TouchableOpacity
+              style={styles.userInfo}
+              onPress={() => router.push("/profile")}
             >
-              {post.likes}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.statButton}
-            onPress={() => router.push(`/(main)/CommentSection/${post._id}`)}
-          >
-            <Ionicons name="chatbubble-outline" size={24} color="#666" />
-            <Text style={styles.statNumber}>{post.comments}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.statButton}>
-            <Feather name="share-2" size={24} color="#666" />
-            <Text style={styles.statNumber}>{post.shares}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.statButton}
-            onPress={() => toggleSavePost(post._id)}
-          >
-            <Ionicons
-              name={
-                savedPosts.includes(post._id) ? "bookmark" : "bookmark-outline"
-              }
-              size={24}
-              color="#666"
-            />
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.timeStamp}>{post.time}</Text>
-      </LinearGradient>
-    </View>
-  );
+              <Image
+                source={{
+                  uri:
+                    post.user.profilePicture &&
+                      post.user.profilePicture.startsWith("http")
+                      ? post.user.profilePicture
+                      : `${ASSET_BASEURL}${post.user.profilePicture || ""}`,
+                }}
+                style={styles.avatar}
+              />
+              <View style={styles.userTextInfo}>
+                <Text style={styles.displayName}>
+                  {fallbackName}
+                  {post.user.isVerified && (
+                    <MaterialCommunityIcons
+                      name="check-decagram"
+                      size={16}
+                      color="#4A00E0"
+                      style={styles.verifiedIcon}
+                    />
+                  )}
+                </Text>
+                <Text style={styles.userHandle}>@{post.user.username}</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.moreButton}>
+              <Feather name="more-horizontal" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Post Content */}
+          <Text style={styles.postContent}>{post.content}</Text>
+          {post.media && post.media.length > 0 && (
+            isVideo ? (
+              <Video
+                source={{ uri: mediaUrl }}
+                style={styles.media}
+                useNativeControls
+                resizeMode="cover"
+                onError={(err) => console.log("Video load error:", err)}
+              />
+            ) : (
+              <Image
+                source={{ uri: mediaUrl }}
+                style={styles.media}
+                resizeMode="cover"
+                onError={(error) =>
+                  console.log("Image load error:", error.nativeEvent)
+                }
+              />
+            )
+          )}
+
+          {/* Post Stats */}
+          <View style={styles.postStats}>
+            <TouchableOpacity
+              style={styles.statButton}
+              onPress={() => toggleLike(post._id)}
+            >
+              <Ionicons
+                name={post.isLiked ? "heart" : "heart-outline"}
+                size={24}
+                color={post.isLiked ? "#4A00E0" : "#666"}
+              />
+              <Text
+                style={[
+                  styles.statNumber,
+                  post.isLiked && styles.statNumberActive,
+                ]}
+              >
+                {post.likes}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.statButton}
+              onPress={() => router.push(`/CommentSection/${post._id}`)}
+            >
+              <Ionicons name="chatbubble-outline" size={24} color="#666" />
+              <Text style={styles.statNumber}>{post.comments}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.statButton}>
+              <Feather name="share-2" size={24} color="#666" />
+              <Text style={styles.statNumber}>{post.shares}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.statButton}
+              onPress={() => toggleSavePost(post._id)}
+            >
+              <Ionicons
+                name={
+                  savedPosts.includes(post._id)
+                    ? "bookmark"
+                    : "bookmark-outline"
+                }
+                size={24}
+                color="#666"
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Timestamp */}
+          <Text style={styles.timeStamp}>{post.time}</Text>
+        </LinearGradient>
+      </View>
+    );
+  };
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -292,7 +322,11 @@ const HomePage = () => {
                 />
                 <View style={styles.menuProfileInfo}>
                   <Text style={styles.menuProfileName}>
-                    {username ? username : "Guest"}
+                    {profile && profile.displayName
+                      ? profile.displayName
+                      : username
+                        ? username
+                        : "Guest"}
                   </Text>
                   <Text style={styles.menuProfileUsername}>
                     {username ? `@${username.toLowerCase()}` : "@guest"}
@@ -434,6 +468,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#fff",
   },
+  media: {
+    width: "100%",
+    aspectRatio: 1, // This makes the height equal to the width
+    borderRadius: 8,
+    marginVertical: 8,
+  },
   menuProfileInfo: { marginLeft: 15 },
   menuProfileName: { color: "#fff", fontSize: 18, fontWeight: "bold" },
   menuProfileUsername: { color: "rgba(255, 255, 255, 0.8)", fontSize: 14 },
@@ -461,8 +501,8 @@ const styles = StyleSheet.create({
   userInfo: { flexDirection: "row", alignItems: "center" },
   avatar: { width: 40, height: 40, borderRadius: 20 },
   userTextInfo: { marginLeft: 10 },
-  nameContainer: { flexDirection: "row", alignItems: "center" },
-  userName: { fontWeight: "bold", fontSize: 16, color: "#333" },
+  nameContainer: { flexDirection: "column", alignItems: "flex-start" },
+  displayName: { fontWeight: "bold", fontSize: 16, color: "#000" },
   verifiedIcon: { marginLeft: 5 },
   userHandle: { color: "#666", fontSize: 14 },
   moreButton: { padding: 5 },
