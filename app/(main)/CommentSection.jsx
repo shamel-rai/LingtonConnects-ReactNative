@@ -1,504 +1,262 @@
-import React, { useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  ScrollView,
   SafeAreaView,
+  ScrollView,
+  StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Animated,
-  Pressable,
+  Image,
+  Alert,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
+import { AuthContext } from "../../Context/AuthContext";
+import { useLocalSearchParams } from "expo-router";
+import apiClient from "../../utils/axiosSetup";
+import API from "../../utils/api";
+import { Feather } from "@expo/vector-icons";
 
-const THEME = {
-  primary: ["#4A00E0", "#8E2DE2"],
-  secondary: ["#7A88FF", "#FD71AF"],
-  optional: ["#FF8F71", "#FF3D77"],
-  background: "#F0F2F5",
-  cardBg: "#FFFFFF",
-  textPrimary: "#1A1A1A",
-  textSecondary: "#666666",
-};
+const CommentsSection = () => {
+  const { authToken } = useContext(AuthContext);
+  const { postId } = useLocalSearchParams();
 
-const AnimatedHeart = ({ liked, onPress }) => {
-  const [scale] = useState(new Animated.Value(1));
+  // COMMENTS AND NEW COMMENT
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState("");
 
-  const animateHeart = () => {
-    Animated.sequence([
-      Animated.spring(scale, {
-        toValue: 1.2,
-        useNativeDriver: true,
-        speed: 50,
-      }),
-      Animated.spring(scale, {
-        toValue: 1,
-        useNativeDriver: true,
-        speed: 50,
-      }),
-    ]).start();
-    onPress();
-  };
+  // FOR THE 3-DOT DROPDOWN
+  const [menuVisibleCommentId, setMenuVisibleCommentId] = useState(null);
 
-  const handleLike = (commentId) => {
-    setComments((prevComments) =>
-      prevComments.map((comment) =>
-        comment.id === commentId
-          ? {
-              ...comment,
-              liked: !comment.liked,
-              likes: comment.liked ? comment.likes - 1 : comment.likes + 1,
-            }
-          : comment
-      )
-    );
-  };
+  // FOR EDITING (IN-LINE)
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingContent, setEditingContent] = useState("");
 
-  const handleReply = (commentId, replyText) => {
-    if (!replyText.trim()) return;
+  useEffect(() => {
+    if (postId) fetchComments();
+  }, [postId]);
 
-    setComments((prevComments) =>
-      prevComments.map((comment) =>
-        comment.id === commentId
-          ? {
-              ...comment,
-              replies: [
-                ...comment.replies,
-                {
-                  id: Date.now(),
-                  username: "current_user", // Replace with actual logged-in username
-                  text: replyText,
-                  time: "Just now",
-                  likes: 0,
-                  liked: false,
-                  replies: [],
-                },
-              ],
-            }
-          : comment
-      )
-    );
-  };
-
-  const handleAddComment = () => {
-    if (!newComment.trim()) return;
-
-    const newCommentObj = {
-      id: Date.now(),
-      username: "current_user", // Replace with actual logged-in username
-      text: newComment,
-      time: "Just now",
-      likes: 0,
-      liked: false,
-      replies: [],
-    };
-
-    setComments((prevComments) => [newCommentObj, ...prevComments]);
-    setNewComment(""); // Clear input
-  };
-
-  return (
-    <TouchableOpacity onPress={animateHeart}>
-      <Animated.Text
-        style={[
-          styles.heartIcon,
-          { transform: [{ scale }], color: liked ? "#FF3B30" : "#666666" },
-        ]}
-      >
-        {liked ? "♥" : "♡"}
-      </Animated.Text>
-    </TouchableOpacity>
-  );
-};
-
-const Comment = ({ comment, onLike, onReply, depth = 0 }) => {
-  const [showReplyInput, setShowReplyInput] = useState(false);
-  const [replyText, setReplyText] = useState("");
-
-  const handleReplySubmit = () => {
-    if (replyText.trim()) {
-      onReply(replyText);
-      setReplyText("");
-      setShowReplyInput(false);
+  // Fetch existing comments for the post
+  const fetchComments = async () => {
+    try {
+      const response = await apiClient.get(API.posts.getComments(postId), {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      setComments(response.data.comments);
+    } catch (error) {
+      console.error("Error fetching comments:", error);
     }
   };
 
-  return (
-    <View style={[styles.commentContainer, depth > 0 && styles.replyContainer]}>
-      <View style={styles.commentRow}>
-        <LinearGradient
-          colors={depth === 0 ? THEME.primary : THEME.secondary}
-          style={[styles.avatar, depth > 0 && styles.replyAvatar]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.avatarText}>
-            {comment.username.charAt(0).toUpperCase()}
-          </Text>
-        </LinearGradient>
-
-        <View style={styles.commentContent}>
-          <View style={styles.commentBubble}>
-            <View style={styles.commentHeader}>
-              <Text style={styles.username}>{comment.username}</Text>
-              <Text style={styles.timeText}>{comment.time}</Text>
-            </View>
-            <Text style={styles.commentText}>{comment.text}</Text>
-          </View>
-
-          <View style={styles.actionRow}>
-            <TouchableOpacity
-              onPress={() => setShowReplyInput(!showReplyInput)}
-              style={styles.replyButton}
-            >
-              <Text style={styles.actionText}>Reply</Text>
-            </TouchableOpacity>
-            <View style={styles.likeContainer}>
-              <AnimatedHeart
-                liked={comment.liked}
-                onPress={() => onLike(comment.id)}
-              />
-              <Text style={styles.likesCount}>{comment.likes}</Text>
-            </View>
-          </View>
-
-          {showReplyInput && (
-            <BlurView
-              intensity={100}
-              tint="light"
-              style={styles.replyInputContainer}
-            >
-              <TextInput
-                value={replyText}
-                onChangeText={setReplyText}
-                placeholder={`Reply to ${comment.username}...`}
-                style={styles.replyInput}
-                multiline
-                placeholderTextColor="#999"
-              />
-              <TouchableOpacity
-                onPress={handleReplySubmit}
-                style={styles.sendButton}
-                disabled={!replyText.trim()}
-              >
-                <LinearGradient
-                  colors={
-                    replyText.trim() ? THEME.primary : ["#E0E0E0", "#E0E0E0"]
-                  }
-                  style={styles.sendButtonGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Text style={styles.sendButtonText}>Send</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </BlurView>
-          )}
-
-          {comment.replies?.map((reply, index) => (
-            <Comment
-              key={reply.id}
-              comment={reply}
-              onLike={onLike}
-              onReply={(text) => onReply(text, reply.id)}
-              depth={depth + 1}
-            />
-          ))}
-        </View>
-      </View>
-    </View>
-  );
-};
-
-const CommentsSection = () => {
-  const [comments, setComments] = useState([
-    {
-      id: 1,
-      username: "john_doe",
-      text: "This is amazing! The new update looks incredible 🔥",
-      time: "2h",
-      likes: 24,
-      liked: false,
-      replies: [
-        {
-          id: 2,
-          username: "jane_smith",
-          text: "Totally agree! The attention to detail is impressive 👏",
-          time: "1h",
-          likes: 5,
-          liked: false,
-          replies: [],
-        },
-      ],
-    },
-    {
-      id: 3,
-      username: "sarah_parker",
-      text: "Love the new design! The animations are so smooth ✨",
-      time: "3h",
-      likes: 15,
-      liked: false,
-      replies: [],
-    },
-  ]);
-
-  const [newComment, setNewComment] = useState("");
-
-  const handleLike = (commentId) => {
-    setComments((prevComments) =>
-      prevComments.map((comment) =>
-        comment.id === commentId
-          ? {
-              ...comment,
-              liked: !comment.liked,
-              likes: comment.liked ? comment.likes - 1 : comment.likes + 1,
-            }
-          : comment
-      )
-    );
-  };
-
-  const handleReply = (commentId, replyText) => {
-    if (!replyText.trim()) return;
-
-    setComments((prevComments) =>
-      prevComments.map((comment) =>
-        comment.id === commentId
-          ? {
-              ...comment,
-              replies: [
-                ...comment.replies,
-                {
-                  id: Date.now(),
-                  username: "current_user",
-                  text: replyText,
-                  time: "Just now",
-                  likes: 0,
-                  liked: false,
-                  replies: [],
-                },
-              ],
-            }
-          : comment
-      )
-    );
-  };
-
-  const handleAddComment = () => {
+  // Add a new comment
+  const handleAddComment = async () => {
     if (!newComment.trim()) return;
+    try {
+      const response = await apiClient.post(
+        API.posts.commentPost(postId),
+        { content: newComment },
+        { headers: { Authorization: `Bearer ${authToken}` } }
+      );
+      // Assuming the backend returns the updated post
+      setComments(response.data.post.comments);
+      setNewComment("");
+    } catch (error) {
+      console.error("Error posting comment:", error);
+    }
+  };
 
-    const newCommentObj = {
-      id: Date.now(),
-      username: "current_user",
-      text: newComment,
-      time: "Just now",
-      likes: 0,
-      liked: false,
-      replies: [],
-    };
+  // Begin editing a comment
+  const handleStartEdit = (commentId, currentContent) => {
+    setMenuVisibleCommentId(null);
+    setEditingCommentId(commentId);
+    setEditingContent(currentContent);
+  };
 
-    setComments((prevComments) => [newCommentObj, ...prevComments]);
-    setNewComment(""); // Clear input
+  // Cancel editing
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingContent("");
+  };
+
+  // Save the edited comment (connects to PUT /posts/:postId/comments/:commentId)
+  const handleSaveEdit = async (commentId) => {
+    try {
+      const response = await apiClient.put(
+        API.posts.updateComment(postId, commentId),
+        { content: editingContent },
+        { headers: { Authorization: `Bearer ${authToken}` } }
+      );
+      // Update the comments with the updated post's comments
+      setComments(response.data.post.comments);
+      setEditingCommentId(null);
+      setEditingContent("");
+    } catch (error) {
+      console.error("Error updating comment:", error);
+      Alert.alert("Edit failed", "Unable to edit comment. Please try again.");
+    }
+  };
+
+  // Delete a comment (connects to DELETE /posts/:postId/comments/:commentId)
+  const handleDeleteComment = async (commentId) => {
+    try {
+      const response = await apiClient.delete(
+        API.posts.deleteComment(postId, commentId),
+        { headers: { Authorization: `Bearer ${authToken}` } }
+      );
+      // Update comments with the new comments array from the backend
+      setComments(response.data.post.comments);
+      setMenuVisibleCommentId(null);
+    } catch (error) {
+      console.error("Error deleting comment:", error);
+      Alert.alert("Delete failed", "Unable to delete comment. Please try again.");
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardAvoidingView}
+        style={styles.keyboard}
       >
-        <ScrollView
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.commentsContainer}>
-            {comments.map((comment) => (
-              <Comment
-                key={comment.id}
-                comment={comment}
-                onLike={handleLike}
-                onReply={(text) => handleReply(comment.id, text)}
-              />
-            ))}
-          </View>
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.commentsContainer}>
+          {comments.length === 0 ? (
+            <Text style={styles.noCommentsText}>No comments yet.</Text>
+          ) : (
+            comments.map((comment) => {
+              const isMenuVisible = menuVisibleCommentId === comment._id;
+              const isEditing = editingCommentId === comment._id;
+              return (
+                <View key={comment._id} style={styles.comment}>
+                  <View style={styles.commentHeader}>
+                    <Image
+                      source={{ uri: comment.user?.profilePicture || "https://via.placeholder.com/50" }}
+                      style={styles.avatar}
+                    />
+                    <View style={styles.userInfo}>
+                      <Text style={styles.displayName}>{comment.user?.displayName || "Unknown"}</Text>
+                      <Text style={styles.username}>@{comment.user?.username || "unknown"}</Text>
+                    </View>
+                    <View style={styles.moreButtonContainer}>
+                      <TouchableOpacity onPress={() => setMenuVisibleCommentId(isMenuVisible ? null : comment._id)}>
+                        <Feather name="more-horizontal" size={22} color="#666" />
+                      </TouchableOpacity>
+                      {isMenuVisible && (
+                        <View style={styles.menuContainer}>
+                          <TouchableOpacity style={styles.menuOption} onPress={() => handleStartEdit(comment._id, comment.content)}>
+                            <Text style={styles.menuOptionText}>Edit</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.menuOption} onPress={() => handleDeleteComment(comment._id)}>
+                            <Text style={[styles.menuOptionText, styles.deleteText]}>Delete</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                  {isEditing ? (
+                    <View style={styles.editContainer}>
+                      <TextInput
+                        style={styles.editInput}
+                        value={editingContent}
+                        onChangeText={setEditingContent}
+                        multiline
+                      />
+                      <View style={styles.editButtonRow}>
+                        <TouchableOpacity style={styles.saveButton} onPress={() => handleSaveEdit(comment._id)}>
+                          <Text style={styles.saveButtonText}>Save</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.cancelButton} onPress={handleCancelEdit}>
+                          <Text style={styles.cancelButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={styles.commentText}>
+                        {typeof comment.content === "string" ? comment.content : JSON.stringify(comment.content)}
+                      </Text>
+                      <Text style={styles.timeText}>{new Date(comment.time).toLocaleString()}</Text>
+                    </>
+                  )}
+                </View>
+              );
+            })
+          )}
         </ScrollView>
-
-        <BlurView intensity={100} tint="light" style={styles.inputContainer}>
+        <View style={styles.inputContainer}>
           <TextInput
+            style={styles.input}
+            placeholder="Add a comment..."
             value={newComment}
             onChangeText={setNewComment}
-            placeholder="Add a comment..."
-            style={styles.input}
-            multiline
             placeholderTextColor="#999"
+            multiline
           />
-          <TouchableOpacity
-            onPress={handleAddComment}
-            disabled={!newComment.trim()}
-          >
-            <LinearGradient
-              colors={
-                newComment.trim() ? THEME.primary : ["#E0E0E0", "#E0E0E0"]
-              }
-              style={styles.sendButtonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Text style={styles.sendButtonText}>Post</Text>
-            </LinearGradient>
+          <TouchableOpacity onPress={handleAddComment} style={styles.postButton}>
+            <Text style={styles.postButtonText}>Post</Text>
           </TouchableOpacity>
-        </BlurView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
 export default CommentsSection;
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: THEME.background,
-  },
-  keyboardAvoidingView: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  commentsContainer: {
-    padding: 16,
-  },
-  commentContainer: {
-    marginBottom: 20,
-  },
-  replyContainer: {
-    marginLeft: 24,
-    marginTop: 12,
-    marginBottom: 0,
-  },
-  commentRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  replyAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-  },
-  avatarText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  commentContent: {
-    flex: 1,
-  },
-  commentBubble: {
-    backgroundColor: THEME.cardBg,
-    borderRadius: 16,
-    padding: 12,
+  container: { flex: 1, backgroundColor: "#f9f9f9" },
+  keyboard: { flex: 1 },
+  scrollView: { flex: 1 },
+  commentsContainer: { padding: 16 },
+  noCommentsText: { textAlign: "center", color: "#666", marginVertical: 20, fontSize: 16 },
+  comment: { marginBottom: 12, padding: 12, backgroundColor: "#fff", borderRadius: 8 },
+  commentHeader: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  avatar: { width: 40, height: 40, borderRadius: 20 },
+  userInfo: { marginLeft: 8, flex: 1 },
+  displayName: { fontWeight: "bold", fontSize: 16, color: "#333" },
+  username: { fontSize: 14, color: "#666" },
+  moreButtonContainer: { position: "relative", marginLeft: "auto" },
+  menuContainer: {
+    position: "absolute",
+    top: 26,
+    right: 0,
+    width: 120,
+    backgroundColor: "#fff",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    paddingVertical: 4,
+    zIndex: 9999,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 4,
   },
-  commentHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  username: {
-    fontWeight: "600",
-    fontSize: 14,
-    color: THEME.textPrimary,
-  },
-  commentText: {
-    fontSize: 15,
-    color: THEME.textPrimary,
-    lineHeight: 20,
-  },
-  actionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-    paddingHorizontal: 4,
-  },
-  timeText: {
-    fontSize: 12,
-    color: THEME.textSecondary,
-  },
-  replyButton: {
-    marginRight: 16,
-  },
-  actionText: {
-    fontSize: 13,
-    color: THEME.textSecondary,
-    fontWeight: "500",
-  },
-  likeContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  heartIcon: {
-    fontSize: 20,
-    marginRight: 4,
-  },
-  likesCount: {
-    fontSize: 13,
-    color: THEME.textSecondary,
-  },
-  replyInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-    backgroundColor: "rgba(255,255,255,0.8)",
-    borderRadius: 20,
+  menuOption: { paddingVertical: 8, paddingHorizontal: 10 },
+  menuOptionText: { fontSize: 14, color: "#333" },
+  deleteText: { color: "#D00" },
+  commentText: { fontSize: 16, color: "#333", marginBottom: 4 },
+  timeText: { fontSize: 12, color: "#666", marginBottom: 8 },
+  editContainer: { backgroundColor: "#f0f0f0", borderRadius: 6, padding: 8 },
+  editInput: {
+    minHeight: 60,
+    backgroundColor: "#fff",
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#ccc",
     padding: 8,
-  },
-  replyInput: {
-    flex: 1,
-    fontSize: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    maxHeight: 100,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.1)",
-    backgroundColor: "rgba(255,255,255,0.8)",
-  },
-  input: {
-    flex: 1,
+    marginBottom: 8,
     fontSize: 15,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    maxHeight: 100,
+    color: "#333",
   },
-  sendButtonGradient: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  sendButtonText: {
-    color: "white",
-    fontWeight: "600",
-    fontSize: 14,
-  },
+  editButtonRow: { flexDirection: "row", justifyContent: "flex-end" },
+  saveButton: { backgroundColor: "#4A00E0", paddingVertical: 8, paddingHorizontal: 16, borderRadius: 4, marginRight: 8 },
+  saveButtonText: { color: "#fff", fontWeight: "600" },
+  cancelButton: { backgroundColor: "#999", paddingVertical: 8, paddingHorizontal: 16, borderRadius: 4 },
+  cancelButtonText: { color: "#fff", fontWeight: "600" },
+  inputContainer: { flexDirection: "row", padding: 16, borderTopWidth: 1, borderTopColor: "#ccc", alignItems: "center", backgroundColor: "#fff" },
+  input: { flex: 1, borderWidth: 1, borderColor: "#ccc", borderRadius: 8, padding: 8, marginRight: 8, fontSize: 15 },
+  postButton: { backgroundColor: "#4A00E0", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
+  postButtonText: { color: "#fff", fontWeight: "600" },
 });

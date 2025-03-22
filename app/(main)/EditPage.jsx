@@ -41,7 +41,8 @@ const EditProfileScreen = () => {
   const router = useRouter();
   const { userId, authToken } = useContext(AuthContext);
 
-  const ASSET_BASEURL = 'http://192.168.101.8:3001'
+  const ASSET_BASEURL = 'http://192.168.101.5:3001'
+  // const ASSET_BASEURL = "http://100.64.205.255:3001";
 
   const availableInterests = [
     "Frontend",

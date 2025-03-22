@@ -37,7 +37,8 @@ const getBaseUrl = () => {
   // On Android emulator, 10.0.2.2 is used to access the host machine’s localhost
   return Platform.OS === "android"
     ? "http://10.0.2.2:3001/api/v1"
-    : "http://192.168.101.8:3001/api/v1";
+    : "http://192.168.101.5:3001/api/v1";
+  // : "http://100.64.205.254:3001/api/v1";
 };
 
 const apiClient = axios.create({

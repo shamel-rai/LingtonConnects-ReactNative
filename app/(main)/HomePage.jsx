@@ -17,19 +17,40 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { AuthContext } from "@/Context/AuthContext";
-import { Video } from "expo-av"
+import { Video } from "expo-av";
 import API from "../../utils/api";
 import apiClient from "../../utils/axiosSetup";
 
 const { width, height } = Dimensions.get("window");
-const ASSET_BASEURL = `http://192.168.101.8:3001`;
+const ASSET_BASEURL = `http://192.168.101.5:3001`;
+// const ASSET_BASEURL = "http://100.64.205.255:3001";
+
+// Helper for header/side navigation profile picture
+const getProfilePicUrl = (profile, authProfilePic) => {
+  let pic = "";
+  if (profile && profile.profilePicture) {
+    pic = profile.profilePicture;
+  } else if (authProfilePic) {
+    pic = authProfilePic;
+  } else {
+    return "https://via.placeholder.com/100";
+  }
+  if (pic.startsWith("http")) return pic;
+  return `${ASSET_BASEURL}${pic.startsWith("/") ? "" : "/"}${pic}`;
+};
+
+// Helper for a post's user profile picture
+const getUserProfilePicUrl = (user) => {
+  const pic = user.profilePicture;
+  if (!pic) return "https://via.placeholder.com/100";
+  if (pic.startsWith("http")) return pic;
+  return `${ASSET_BASEURL}${pic.startsWith("/") ? "" : "/"}${pic}`;
+};
 
 const HomePage = () => {
-  // Get auth details and refresh parameter from context and router.
   const { authToken, username, profilePicture, userId, logout } = useContext(AuthContext);
   const { refresh } = useLocalSearchParams();
 
-  // State for profile, posts, saved posts, and loading.
   const [profile, setProfile] = useState(null);
   const [posts, setPosts] = useState([]);
   const [savedPosts, setSavedPosts] = useState([]);
@@ -68,8 +89,11 @@ const HomePage = () => {
         const response = await apiClient.get(API.posts.getAll(), {
           headers: { Authorization: `Bearer ${authToken}` },
         });
-        console.log("Fetched Posts:", JSON.stringify(response.data, null, 2));
-        setPosts(response.data.posts);
+        const postWithLikedInfo = response.data.posts.map((post) => ({
+          ...post,
+          isLiked: post.likedBy && post.likedBy.includes(userId),
+        }));
+        setPosts(postWithLikedInfo);
       } catch (error) {
         console.error("Error fetching posts:", error.message);
       } finally {
@@ -79,19 +103,10 @@ const HomePage = () => {
     fetchPosts();
   }, [authToken, refresh]);
 
-  // Determine the correct profile picture URL.
-  const profilePicUrl =
-    profile && profile.profilePicture
-      ? profile.profilePicture.startsWith("http")
-        ? profile.profilePicture
-        : `${ASSET_BASEURL}${profile.profilePicture}`
-      : profilePicture && profilePicture.startsWith("http")
-        ? profilePicture
-        : profilePicture
-          ? `${ASSET_BASEURL}${profilePicture}`
-          : "https://via.placeholder.com/100";
+  // Compute the resolved URL using our helper function.
+  const resolvedProfilePicUrl = getProfilePicUrl(profile, profilePicture);
+  console.log("Resolved profilePicUrl:", resolvedProfilePicUrl);
 
-  // Sidebar and navigation state.
   const [activeTab, setActiveTab] = useState("home");
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const router = useRouter();
@@ -103,7 +118,7 @@ const HomePage = () => {
     router.push(route);
   };
 
-  // Toggle the "like" status for a post.
+  // Toggle like status for a post.
   const toggleLike = async (postId) => {
     try {
       await apiClient.post(
@@ -152,16 +167,10 @@ const HomePage = () => {
           <View style={styles.postHeader}>
             <TouchableOpacity
               style={styles.userInfo}
-              onPress={() => router.push("/profile")}
+              onPress={() => router.push("/ProfilePage")}
             >
               <Image
-                source={{
-                  uri:
-                    post.user.profilePicture &&
-                      post.user.profilePicture.startsWith("http")
-                      ? post.user.profilePicture
-                      : `${ASSET_BASEURL}${post.user.profilePicture || ""}`,
-                }}
+                source={{ uri: getUserProfilePicUrl(post.user) }}
                 style={styles.avatar}
               />
               <View style={styles.userTextInfo}>
@@ -179,12 +188,10 @@ const HomePage = () => {
                 <Text style={styles.userHandle}>@{post.user.username}</Text>
               </View>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.moreButton}>
               <Feather name="more-horizontal" size={24} color="#666" />
             </TouchableOpacity>
           </View>
-
           {/* Post Content */}
           <Text style={styles.postContent}>{post.content}</Text>
           {post.media && post.media.length > 0 && (
@@ -207,7 +214,6 @@ const HomePage = () => {
               />
             )
           )}
-
           {/* Post Stats */}
           <View style={styles.postStats}>
             <TouchableOpacity
@@ -228,20 +234,22 @@ const HomePage = () => {
                 {post.likes}
               </Text>
             </TouchableOpacity>
-
             <TouchableOpacity
-              style={styles.statButton}
-              onPress={() => router.push(`/CommentSection/${post._id}`)}
+              onPress={() =>
+                router.push({
+                  pathname: "/CommentSection",
+                  params: { postId: post._id },
+                })
+              }
+              style={styles.commentButton}
             >
               <Ionicons name="chatbubble-outline" size={24} color="#666" />
-              <Text style={styles.statNumber}>{post.comments}</Text>
+              <Text style={styles.statNumber}>{post.comments.length}</Text>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.statButton}>
               <Feather name="share-2" size={24} color="#666" />
               <Text style={styles.statNumber}>{post.shares}</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={styles.statButton}
               onPress={() => toggleSavePost(post._id)}
@@ -257,14 +265,12 @@ const HomePage = () => {
               />
             </TouchableOpacity>
           </View>
-
           {/* Timestamp */}
           <Text style={styles.timeStamp}>{post.time}</Text>
         </LinearGradient>
       </View>
     );
   };
-
 
   return (
     <SafeAreaView style={styles.container}>
@@ -273,23 +279,22 @@ const HomePage = () => {
         backgroundColor="#4A00E0"
         translucent={false}
       />
+      {/* Header with navigation */}
       <LinearGradient colors={["#4A00E0", "#8E2DE2"]} style={styles.header}>
         <TouchableOpacity onPress={openSidebar}>
           <Feather name="menu" size={24} color="white" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Home</Text>
         <TouchableOpacity onPress={() => router.push("/ProfilePage")}>
-          <Image source={{ uri: profilePicUrl }} style={styles.headerAvatar} />
+          <Image source={{ uri: resolvedProfilePicUrl }} style={styles.headerAvatar} />
         </TouchableOpacity>
       </LinearGradient>
-
       <FlatList
         data={posts}
         keyExtractor={(item) => item._id.toString()}
         renderItem={({ item }) => renderPost(item)}
         showsVerticalScrollIndicator={false}
       />
-
       <Modal
         visible={isSidebarVisible}
         animationType="slide"
@@ -317,7 +322,7 @@ const HomePage = () => {
                 onPress={() => navigateAndCloseSidebar("/ProfilePage")}
               >
                 <Image
-                  source={{ uri: profilePicUrl }}
+                  source={{ uri: resolvedProfilePicUrl }}
                   style={styles.menuProfileImage}
                 />
                 <View style={styles.menuProfileInfo}>
@@ -371,7 +376,6 @@ const HomePage = () => {
           </View>
         </TouchableOpacity>
       </Modal>
-
       <LinearGradient colors={["#4A00E0", "#8E2DE2"]} style={styles.navbar}>
         <TouchableOpacity
           style={[styles.navItem, activeTab === "home" && styles.activeNavItem]}
@@ -470,7 +474,7 @@ const styles = StyleSheet.create({
   },
   media: {
     width: "100%",
-    aspectRatio: 1, // This makes the height equal to the width
+    aspectRatio: 1,
     borderRadius: 8,
     marginVertical: 8,
   },
