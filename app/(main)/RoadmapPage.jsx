@@ -204,14 +204,6 @@ const RoadmapApp = () => {
         >
           {roadmapDetails && roadmapDetails.section && roadmapDetails.section.length > 0 ? (
             <View style={styles.graphicalRoadmap}>
-              {/* Progress Bar */}
-              <View style={styles.progressContainer}>
-                <View style={styles.progressBar}>
-                  <View style={[styles.progressFill, { width: '40%' }]} />
-                </View>
-                <Text style={styles.progressText}>40% Complete</Text>
-              </View>
-
               {/* Main Roadmap Flow */}
               {roadmapDetails.section.map((section, index) => {
                 const nodeColors = getNodeColor(index);
@@ -493,28 +485,6 @@ const styles = StyleSheet.create({
   },
   graphicalRoadmap: {
     padding: 16,
-  },
-  // Progress bar
-  progressContainer: {
-    marginBottom: 24,
-    paddingHorizontal: 16,
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: "rgba(0,0,0,0.05)",
-    borderRadius: 4,
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-  progressFill: {
-    height: 8,
-    backgroundColor: THEME.primary[0],
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 14,
-    color: THEME.textSecondary,
-    textAlign: "right",
   },
   roadmapSection: {
     marginBottom: 16,

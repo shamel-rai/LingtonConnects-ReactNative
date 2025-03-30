@@ -1,3 +1,4 @@
+// SearchPage.js
 import React, { useState } from "react";
 import {
   View,
@@ -12,90 +13,60 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import API from "../../utils/api";
+import apiClient from "../../utils/axiosSetup";
+
+// Import the profile detail component
+import SearchProfileScreen from "./SearchProfileScreen";
 
 const SearchPage = () => {
-  const router = useRouter();
+  // State for managing the selected user ID.
+  const [selectedUserId, setSelectedUserId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [users, setUsers] = useState([]);
 
-  // Sample users data - replace with your actual data or API call
-  const [users, setUsers] = useState([
-    {
-      id: "1",
-      name: "Sarah Wilson",
-      username: "@sarah_wilson",
-      avatar: "https://via.placeholder.com/50",
-      isVerified: true,
-      followers: "12.5K",
-      bio: "Professional photographer | Nature lover 📸",
-    },
-    {
-      id: "2",
-      name: "John Doe",
-      username: "@johndoe",
-      avatar: "https://via.placeholder.com/50",
-      isVerified: false,
-      followers: "8.2K",
-      bio: "Digital artist & creative designer ✨",
-    },
-    // Add more sample users
-  ]);
-
-  const handleSearch = (text) => {
+  const handleSearch = async (text) => {
     setSearchQuery(text);
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      // Filter users based on search query
-      // In real app, this would be an API call
+
+    if (text.trim() === "") {
+      setUsers([]);
       setIsLoading(false);
-    }, 500);
+      return;
+    }
+    try {
+      const response = await apiClient.get(API.Search.users(text));
+      const data = await response.data;
+      console.log(data);
+      setUsers(data);
+    } catch (error) {
+      console.error("Search Error: ", error);
+      setUsers([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const renderUserItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.userCard}
-      onPress={() => router.push(`/profile/${item.id}`)}
-    >
-      <Image source={{ uri: item.avatar }} style={styles.avatar} />
-      <View style={styles.userInfo}>
-        <View style={styles.nameContainer}>
-          <Text style={styles.userName}>{item.name}</Text>
-          {item.isVerified && (
-            <MaterialCommunityIcons
-              name="check-decagram"
-              size={16}
-              color="#4A00E0"
-              style={styles.verifiedIcon}
-            />
-          )}
-        </View>
-        <Text style={styles.userHandle}>{item.username}</Text>
-        <Text style={styles.userBio} numberOfLines={1}>
-          {item.bio}
-        </Text>
-        <View style={styles.followerContainer}>
-          <Feather name="users" size={14} color="#666" />
-          <Text style={styles.followerText}>{item.followers} followers</Text>
-        </View>
-      </View>
-      <TouchableOpacity style={styles.followButton}>
-        <Text style={styles.followButtonText}>Follow</Text>
-      </TouchableOpacity>
-    </TouchableOpacity>
-  );
+  // When a user card is pressed, update the selectedUserId.
+  const handleUserPress = (userId) => {
+    setSelectedUserId(userId);
+  };
+
+  // If a user is selected, render the profile detail screen.
+  if (selectedUserId) {
+    return (
+      <SearchProfileScreen
+        userId={selectedUserId}
+        onBack={() => setSelectedUserId(null)}
+      />
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient colors={["#4A00E0", "#8E2DE2"]} style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Feather name="arrow-left" size={24} color="white" />
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>Search Users</Text>
       </LinearGradient>
 
@@ -125,8 +96,40 @@ const SearchPage = () => {
       ) : (
         <FlatList
           data={users}
-          renderItem={renderUserItem}
-          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.userCard}
+              onPress={() => handleUserPress(item.id || item._id)}
+            >
+              <Image source={{ uri: item.avatar }} style={styles.avatar} />
+              <View style={styles.userInfo}>
+                <View style={styles.nameContainer}>
+                  <Text style={styles.userName}>{item.name}</Text>
+                  {item.isVerified && (
+                    <MaterialCommunityIcons
+                      name="check-decagram"
+                      size={16}
+                      color="#4A00E0"
+                      style={styles.verifiedIcon}
+                    />
+                  )}
+                </View>
+                <Text style={styles.userHandle}>{item.username}</Text>
+                <Text style={styles.userBio} numberOfLines={1}>
+                  {item.bio}
+                </Text>
+                <View style={styles.followerContainer}>
+                  <Feather name="users" size={14} color="#666" />
+                  <Text style={styles.followerText}>
+                    {item.followers} followers
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+          keyExtractor={(item) =>
+            (item._id?.toString() || item.id?.toString()) || Math.random().toString()
+          }
           contentContainerStyle={styles.userList}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
@@ -155,10 +158,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 15,
     paddingTop: Platform.OS === "ios" ? 0 : 15,
-  },
-  backButton: {
-    padding: 5,
-    marginRight: 15,
   },
   headerTitle: {
     fontSize: 20,
@@ -204,10 +203,7 @@ const styles = StyleSheet.create({
     padding: 15,
     marginBottom: 10,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
@@ -252,18 +248,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#666",
     marginLeft: 4,
-  },
-  followButton: {
-    backgroundColor: "#4A00E0",
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginLeft: 10,
-  },
-  followButtonText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "600",
   },
   emptyContainer: {
     flex: 1,

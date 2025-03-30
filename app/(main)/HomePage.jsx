@@ -355,10 +355,17 @@ const HomePage = () => {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.menuItem}
-                  onPress={() => navigateAndCloseSidebar("/SettingsPage")}
+                  onPress={() => navigateAndCloseSidebar("/Jobposting")}
                 >
                   <Feather name="settings" size={24} color="white" />
-                  <Text style={styles.menuItemText}>Settings</Text>
+                  <Text style={styles.menuItemText}>Job posting</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => navigateAndCloseSidebar("/SearchProfileScreen")}
+                >
+                  <Feather name="settings" size={24} color="white" />
+                  <Text style={styles.menuItemText}>Search</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.menuItem}
