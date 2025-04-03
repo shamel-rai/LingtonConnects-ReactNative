@@ -22,8 +22,8 @@ import API from "../../utils/api";
 import apiClient from "../../utils/axiosSetup";
 
 const { width, height } = Dimensions.get("window");
-const ASSET_BASEURL = `http://192.168.101.5:3001`;
-// const ASSET_BASEURL = "http://100.64.205.255:3001";
+const ASSET_BASEURL = `http://192.168.101.7:3001`;
+// const ASSET_BASEURL = "http://100.64.243.138:3001";
 
 // Helper for header/side navigation profile picture
 const getProfilePicUrl = (profile, authProfilePic) => {
@@ -424,7 +424,7 @@ const HomePage = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.navItem, activeTab === "messages" && styles.activeNavItem]}
-          onPress={() => setActiveTab("messages")}
+          onPress={() => router.push("/MessageListScreen")}
         >
           <View style={styles.messageContainer}>
             <Feather name="mail" size={24} color="white" />

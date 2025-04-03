@@ -28,7 +28,8 @@ const THEME = {
     cardBg: '#f8f8f8',
 };
 
-const ASSET_BASEURL = "http://192.168.101.5:3001";
+const ASSET_BASEURL = "http://192.168.101.7:3001";
+// const ASSET_BASEURL = "http://100.64.243.138:3001";
 
 const PostCreatePage = () => {
     const [postText, setPostText] = useState('');

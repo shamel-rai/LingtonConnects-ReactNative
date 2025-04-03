@@ -1,13 +1,12 @@
-const BASE_URL = "http://192.168.101.5:3001/api/v1";
+const BASE_URL = "http://192.168.101.7:3001/api/v1";
+// const BASE_URL = "http://100.64.243.138:3001/api/v1";
 
 const API = {
   baseUrl: BASE_URL,
   profile: {
-    // Updated to include '/users' to match the backend route
     get: (userId) => `${BASE_URL}/users/${userId}`,
     update: (userId) => `${BASE_URL}/users/${userId}`,
-    uploadProfilePicture: (userId) =>
-      `${BASE_URL}/users/${userId}/profile-picture`,
+    uploadProfilePicture: (userId) => `${BASE_URL}/users/${userId}/profile-picture`,
     followers: (userId) => `${BASE_URL}/users/${userId}/followers`,
     following: (userId) => `${BASE_URL}/users/${userId}/following`,
     follow: (userId) => `${BASE_URL}/users/${userId}/follow`,
@@ -16,16 +15,13 @@ const API = {
   posts: {
     getAll: () => `${BASE_URL}/posts/all`,
     addPost: () => `${BASE_URL}/posts`,
-    // Adjust this endpoint if your backend has a separate route for user posts.
     getUserPost: (userId) => `${BASE_URL}/users/${userId}/posts`,
     likePost: (postId) => `${BASE_URL}/posts/${postId}/like`,
     commentPost: (postId) => `${BASE_URL}/posts/${postId}/comment`,
     sharePost: (postId) => `${BASE_URL}/posts/${postId}/share`,
     getComments: (postId) => `${BASE_URL}/posts/${postId}/comments`,
-    updateComment: (postId, commentId) =>
-      `${BASE_URL}/posts/${postId}/comments/${commentId}`,
-    deleteComment: (postId, commentId) =>
-      `${BASE_URL}/posts/${postId}/comments/${commentId}`,
+    updateComment: (postId, commentId) => `${BASE_URL}/posts/${postId}/comments/${commentId}`,
+    deleteComment: (postId, commentId) => `${BASE_URL}/posts/${postId}/comments/${commentId}`,
   },
   authentication: {
     login: () => `${BASE_URL}/login`,
@@ -39,6 +35,15 @@ const API = {
   },
   Search: {
     users: (query) => `${BASE_URL}/users/search?query=${query}`,
+  },
+  messages: {
+    conversation: (conversationId) => `${BASE_URL}/messages?conversationId=${conversationId}`,
+    send: (conversationId) => `${BASE_URL}/messages`,
+  },
+  conversations: {
+    getAll: () => `${BASE_URL}/conversations`,
+    // FIXED: Use the base URL here
+    getOrCreate: `${BASE_URL}/conversations/getOrCreate`,
   },
 };
 
