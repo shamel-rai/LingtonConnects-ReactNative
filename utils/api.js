@@ -38,11 +38,11 @@ const API = {
   },
   messages: {
     conversation: (conversationId) => `${BASE_URL}/messages?conversationId=${conversationId}`,
-    send: (conversationId) => `${BASE_URL}/messages`,
+    send: () => `${BASE_URL}/messages`,
   },
   conversations: {
-    getAll: () => `${BASE_URL}/conversations`,
-    // FIXED: Use the base URL here
+    // Now expecting a userId parameter.
+    getAll: (userId) => `${BASE_URL}/conversations?userId=${userId}`,
     getOrCreate: `${BASE_URL}/conversations/getOrCreate`,
   },
 };

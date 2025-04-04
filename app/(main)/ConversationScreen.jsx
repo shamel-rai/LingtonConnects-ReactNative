@@ -11,100 +11,228 @@ import {
     TextInput,
     KeyboardAvoidingView,
     Platform,
+    ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import apiClient from "../../utils/axiosSetup";
 import API from "../../utils/api";
 import io from "socket.io-client";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import NetInfo from "@react-native-community/netinfo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function ConversationScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
 
-    // Conversation is passed as a JSON string param; parse it
+    // Pull conversation from route params
     const conversation =
         typeof params.conversation === "string"
             ? JSON.parse(params.conversation)
             : params.conversation;
+    const conversationId = conversation?._id;
+
+    // IMPORTANT: localUserId should come from your authentication context
+    const localUserId = "local-user-id"; // Replace with actual local user ID
 
     const [messages, setMessages] = useState([]);
-    const [newMessage, setNewMessage] = useState("");  // track the input
+    const [newMessage, setNewMessage] = useState("");
     const [isLoading, setIsLoading] = useState(true);
+    const [isOffline, setIsOffline] = useState(false);
+
     const flatListRef = useRef(null);
     const socketRef = useRef(null);
 
-    // 1) Socket.io
+    // Replace these URLs with actual avatar URLs from your user profiles.
+    const localUserAvatar = "https://example.com/myLocalUser.jpg";
+    const otherUserAvatar =
+        conversation?.avatar || "https://via.placeholder.com/50";
+
+    // Initialize Socket.IO and join the conversation room
     useEffect(() => {
-        if (!conversation || !conversation.id) return;
+        if (!conversationId) return;
+
         socketRef.current = io("http://192.168.101.7:3001");
-        socketRef.current.emit("joinConversation", conversation.id);
-        socketRef.current.on("newMessage", (message) => {
-            if (message.conversationId === conversation.id) {
-                setMessages((prev) => [...prev, message]);
+        socketRef.current.emit("joinConversation", conversationId);
+
+        socketRef.current.on("newMessage", (serverMessage) => {
+            if (serverMessage.conversationId === conversationId) {
+                addServerMessage(serverMessage);
             }
         });
-        return () => {
-            if (socketRef.current) socketRef.current.disconnect();
-        };
-    }, [conversation]);
 
-    // 2) Fetch existing messages
+        return () => {
+            if (socketRef.current) {
+                socketRef.current.emit("leaveConversation", conversationId);
+                socketRef.current.disconnect();
+            }
+        };
+    }, [conversationId]);
+
+    // Fetch existing messages from the server
     useEffect(() => {
+        if (!conversationId) return;
         const fetchMessages = async () => {
             setIsLoading(true);
             try {
-                const response = await apiClient.get(API.messages.conversation(conversation.id));
+                const response = await apiClient.get(API.messages.conversation(conversationId));
                 setMessages(response.data);
             } catch (error) {
-                console.error("Error fetching messages:", error.response?.data || error.message);
+                console.error("Error fetching messages:", error?.response?.data || error.message);
                 setMessages([]);
             } finally {
                 setIsLoading(false);
             }
         };
-        if (conversation?.id) {
-            fetchMessages();
-        }
-    }, [conversation]);
 
-    // 3) Auto-scroll
+        fetchMessages();
+    }, [conversationId]);
+
+    // Auto-scroll to latest message
     useEffect(() => {
-        if (messages.length > 0 && flatListRef.current) {
+        if (messages.length > 0) {
             setTimeout(() => {
-                flatListRef.current.scrollToEnd({ animated: true });
+                if (flatListRef.current) {
+                    flatListRef.current.scrollToEnd({ animated: true });
+                }
             }, 100);
         }
     }, [messages]);
 
-    // 4) Send a message
-    const handleSendMessage = async () => {
-        if (newMessage.trim() === "") return;
-        const messageData = {
-            conversationId: conversation.id,
-            text: newMessage,
-        };
+    // Offline/online detection and sending queued messages
+    useEffect(() => {
+        const unsubscribe = NetInfo.addEventListener((state) => {
+            const offline = !(state.isConnected && state.isInternetReachable);
+            setIsOffline(offline);
+            if (!offline) {
+                sendQueuedMessages();
+            }
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const sendQueuedMessages = async () => {
         try {
-            await apiClient.post(API.messages.send(conversation.id), messageData, {
-                headers: { "Content-Type": "application/json" },
-            });
-            setNewMessage("");
+            const storedQueue = await AsyncStorage.getItem("offlineQueue");
+            const offlineMessages = JSON.parse(storedQueue) || [];
+            const msgsForThisConversation = offlineMessages.filter(
+                (m) => m.conversationId === conversationId
+            );
+            if (msgsForThisConversation.length === 0) return;
+            for (const msgData of msgsForThisConversation) {
+                try {
+                    await apiClient.post(API.messages.send(conversationId), msgData);
+                } catch (error) {
+                    console.error("Error sending queued message:", error);
+                }
+            }
+            const remaining = offlineMessages.filter((m) => m.conversationId !== conversationId);
+            await AsyncStorage.setItem("offlineQueue", JSON.stringify(remaining));
         } catch (error) {
-            console.error("Error sending message:", error.response?.data || error.message);
+            console.error("sendQueuedMessages error:", error);
         }
     };
 
-    // 5) Render each message bubble
+    // Send a message (online or offline)
+    const handleSendMessage = async () => {
+        if (!newMessage.trim()) return;
+        const messageData = {
+            conversationId,
+            text: newMessage,
+            senderId: localUserId, // include senderId for alignment
+        };
+
+        if (!isOffline) {
+            try {
+                const response = await apiClient.post(
+                    API.messages.send(conversationId),
+                    messageData,
+                    { headers: { "Content-Type": "application/json" } }
+                );
+                if (response && response.data) {
+                    addServerMessage(response.data);
+                }
+                setNewMessage("");
+            } catch (error) {
+                console.error("Error sending message:", error?.response?.data || error.message);
+                await storeMessageOffline(messageData);
+                setNewMessage("");
+            }
+        } else {
+            await storeMessageOffline(messageData);
+            setNewMessage("");
+        }
+    };
+
+    // Merge the server message, removing local pending duplicates if any
+    const addServerMessage = (serverMessage) => {
+        setMessages((prev) => {
+            const filtered = prev.filter((msg) => {
+                if (msg._id && msg._id === serverMessage._id) return false;
+                // Remove pending message if it matches by sender and text
+                if (!msg._id && msg.senderId === serverMessage.senderId && msg.text === serverMessage.text) {
+                    return false;
+                }
+                return true;
+            });
+            return [...filtered, serverMessage];
+        });
+    };
+
+    // If offline, store message locally and show a pending message
+    const storeMessageOffline = async (messageData) => {
+        try {
+            const storedQueue = await AsyncStorage.getItem("offlineQueue");
+            const offlineMessages = JSON.parse(storedQueue) || [];
+            const localId = `local-${Date.now()}`;
+            const localPendingMsg = {
+                localId,
+                conversationId,
+                text: messageData.text,
+                timestamp: new Date(),
+                senderId: messageData.senderId,
+                pending: true,
+            };
+            offlineMessages.push({ ...messageData, localId });
+            await AsyncStorage.setItem("offlineQueue", JSON.stringify(offlineMessages));
+            setMessages((prev) => [...prev, localPendingMsg]);
+        } catch (error) {
+            console.error("Error storing message offline:", error);
+        }
+    };
+
+    // Render each message with left/right alignment based on senderId
     const renderMessage = ({ item }) => {
-        const isUser = item.isMine;
+        const isLocal = item.senderId === localUserId;
+        const avatarUri = isLocal ? localUserAvatar : otherUserAvatar;
+
         return (
-            <View style={[styles.messageBubble, isUser ? styles.userBubble : styles.otherBubble]}>
-                <Text style={[styles.bubbleText, isUser ? styles.userBubbleText : styles.otherBubbleText]}>
-                    {item.text}
-                </Text>
-                <Text style={styles.messageTime}>
-                    {item.time || new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </Text>
+            <View
+                style={[
+                    styles.messageRow,
+                    isLocal ? styles.messageRowRight : styles.messageRowLeft,
+                ]}
+            >
+                {/* Show avatar for other user's messages on the left */}
+                {!isLocal && (
+                    <Image source={{ uri: avatarUri }} style={styles.avatarBubble} />
+                )}
+                <View style={[styles.messageBubble, isLocal ? styles.userBubble : styles.otherBubble]}>
+                    <Text style={[styles.bubbleText, isLocal ? styles.userBubbleText : styles.otherBubbleText]}>
+                        {item.text}
+                    </Text>
+                    <Text style={styles.messageTime}>
+                        {new Date(item.timestamp).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                        })}
+                    </Text>
+                    {item.pending && <Text style={{ fontSize: 10, color: "red" }}> (Pending) </Text>}
+                </View>
+                {/* For local messages, show avatar on the right */}
+                {isLocal && (
+                    <Image source={{ uri: avatarUri }} style={styles.avatarBubble} />
+                )}
             </View>
         );
     };
@@ -112,18 +240,24 @@ export default function ConversationScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="#4A00E0" />
-
             <LinearGradient colors={["#4A00E0", "#8E2DE2"]} style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Text style={styles.backButtonText}>←</Text>
                 </TouchableOpacity>
-                <Image source={{ uri: conversation.avatar }} style={styles.avatar} />
-                <Text style={styles.name}>{conversation.name}</Text>
+                <Image
+                    source={{ uri: conversation?.avatar || "https://via.placeholder.com/40" }}
+                    style={styles.headerAvatar}
+                />
+                <View style={styles.headerTextContainer}>
+                    <Text style={styles.name}>{conversation?.name || "Chat"}</Text>
+                    {conversation?.username && (
+                        <Text style={styles.username}>@{conversation.username}</Text>
+                    )}
+                </View>
             </LinearGradient>
-
             {isLoading ? (
                 <View style={styles.loadingContainer}>
-                    <Text>Loading messages...</Text>
+                    <ActivityIndicator size="large" color="#4A00E0" />
                 </View>
             ) : messages.length === 0 ? (
                 <View style={styles.noMessagesContainer}>
@@ -134,11 +268,14 @@ export default function ConversationScreen() {
                     ref={flatListRef}
                     data={messages}
                     renderItem={renderMessage}
-                    keyExtractor={(item) => item.id.toString()}
+                    keyExtractor={(item, index) => {
+                        if (item._id) return item._id.toString();
+                        if (item.localId) return item.localId;
+                        return `fallback-${index}`;
+                    }}
                     contentContainerStyle={styles.messagesContainer}
                 />
             )}
-
             <KeyboardAvoidingView
                 style={styles.inputContainer}
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -163,23 +300,29 @@ export default function ConversationScreen() {
     );
 }
 
-// Minimal styles (unchanged from previous conversation code)
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#fff" },
     header: { flexDirection: "row", alignItems: "center", padding: 15, backgroundColor: "#4A00E0" },
     backButton: { padding: 10 },
     backButtonText: { color: "white", fontSize: 24 },
-    avatar: { width: 40, height: 40, borderRadius: 20, marginLeft: 10 },
-    name: { color: "white", fontSize: 18, fontWeight: "bold", marginLeft: 15 },
+    headerAvatar: { width: 40, height: 40, borderRadius: 20, marginLeft: 10 },
+    headerTextContainer: { flex: 1, marginLeft: 15, justifyContent: 'center' },
+    name: { color: "white", fontSize: 18, fontWeight: "bold" },
+    username: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
     loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
     noMessagesContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
     noMessagesText: { fontSize: 16, color: "black" },
     messagesContainer: { padding: 10, paddingBottom: 20 },
-    messageBubble: { maxWidth: "75%", padding: 12, borderRadius: 18, marginBottom: 10 },
-    userBubble: { alignSelf: "flex-end", backgroundColor: "#E8E8E8", borderBottomRightRadius: 5 },
-    otherBubble: { alignSelf: "flex-start", backgroundColor: "#F5F5F5", borderBottomLeftRadius: 5 },
+    // For message row, local messages align right, others left
+    messageRow: { flexDirection: "row", alignItems: "flex-end", marginBottom: 10 },
+    messageRowLeft: { alignSelf: "flex-start", flexDirection: "row" },
+    messageRowRight: { alignSelf: "flex-end", flexDirection: "row-reverse" },
+    avatarBubble: { width: 30, height: 30, borderRadius: 15, marginHorizontal: 5 },
+    messageBubble: { maxWidth: "70%", padding: 10, borderRadius: 18 },
+    userBubble: { backgroundColor: "#0084FF", borderBottomRightRadius: 5 },
+    otherBubble: { backgroundColor: "#E8E8E8", borderBottomLeftRadius: 5 },
     bubbleText: { fontSize: 16 },
-    userBubbleText: { color: "black" },
+    userBubbleText: { color: "white" },
     otherBubbleText: { color: "black" },
     messageTime: { fontSize: 10, color: "#333", alignSelf: "flex-end", marginTop: 2 },
     inputContainer: { flexDirection: "row", padding: 10, backgroundColor: "#fff", alignItems: "center" },
