@@ -15,13 +15,28 @@ import apiClient from "../../utils/axiosSetup";
 import API from "../../utils/api";
 import { AuthContext } from "../../Context/AuthContext";
 
+const ASSET_BASEURL = "http://192.168.101.7:3001";
+
+// Helper function to get full avatar URL
+const getAvatarUrl = (avatar) => {
+    if (!avatar) {
+        return "https://via.placeholder.com/50?text=No+Avatar";
+    }
+    if (avatar.startsWith("http")) {
+        return avatar;
+    }
+    return `${ASSET_BASEURL}${avatar.startsWith("/") ? "" : "/"}${avatar}`;
+};
+
 export default function MessageListScreen() {
     const router = useRouter();
     const [conversations, setConversations] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [userProfile, setUserProfile] = useState(null);
     const { username, userId, authToken } = useContext(AuthContext);
 
     useEffect(() => {
+        // Fetch conversation data
         const fetchConversations = async () => {
             setLoading(true);
             try {
@@ -35,8 +50,23 @@ export default function MessageListScreen() {
                 setLoading(false);
             }
         };
+
+        // Fetch full user profile data (including avatar)
+        const fetchUserProfile = async () => {
+            try {
+                // Use API.profile.get instead of API.user.get
+                const response = await apiClient.get(API.profile.get(userId), {
+                    headers: { Authorization: `Bearer ${authToken}` },
+                });
+                setUserProfile(response.data);
+            } catch (error) {
+                console.error("Error fetching user profile:", error);
+            }
+        };
+
         if (userId && authToken) {
             fetchConversations();
+            fetchUserProfile();
         }
     }, [userId, authToken]);
 
@@ -45,6 +75,7 @@ export default function MessageListScreen() {
     };
 
     const renderItem = ({ item }) => {
+        // Find the other user in the conversation
         const otherUser =
             item.users &&
             userId &&
@@ -56,9 +87,7 @@ export default function MessageListScreen() {
                     user._id.toString() !== userId.toString()
             );
 
-        const avatarUri =
-            (otherUser && otherUser.avatar) ||
-            "https://via.placeholder.com/50?text=No+Avatar";
+        const avatarUri = getAvatarUrl(otherUser && otherUser.avatar);
         const displayName =
             (otherUser && (otherUser.username || otherUser.name)) || "Unknown User";
 
@@ -90,10 +119,17 @@ export default function MessageListScreen() {
         );
     };
 
+    // Use the fetched profile avatar if available; otherwise, fall back to the initial letter
+    const headerAvatarUri =
+        userProfile && userProfile.avatar ? getAvatarUrl(userProfile.avatar) : null;
+
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="#4A00E0" />
-            <LinearGradient colors={["#4A00E0", "#8E2DE2"]} style={styles.headerGradient}>
+            <LinearGradient
+                colors={["#4A00E0", "#8E2DE2"]}
+                style={styles.headerGradient}
+            >
                 <View style={styles.headerContainer}>
                     <Text style={styles.headerTitle}>Messages</Text>
                     <TouchableOpacity onPress={navigateToProfile} style={styles.profileButton}>
@@ -101,14 +137,19 @@ export default function MessageListScreen() {
                             <Text style={styles.welcomeText}>Welcome,</Text>
                             <Text style={styles.usernameText}>{username || "User"}</Text>
                         </View>
-                        <View style={styles.profileAvatarContainer}>
-                            <Text style={styles.profileInitial}>
-                                {username ? username[0].toUpperCase() : "U"}
-                            </Text>
-                        </View>
+                        {headerAvatarUri ? (
+                            <Image source={{ uri: headerAvatarUri }} style={styles.headerAvatar} />
+                        ) : (
+                            <View style={styles.profileAvatarContainer}>
+                                <Text style={styles.profileInitial}>
+                                    {username ? username[0].toUpperCase() : "U"}
+                                </Text>
+                            </View>
+                        )}
                     </TouchableOpacity>
                 </View>
             </LinearGradient>
+
             {loading ? (
                 <View style={styles.noMessagesContainer}>
                     <Text style={styles.noMessagesText}>Loading...</Text>
@@ -177,6 +218,12 @@ const styles = StyleSheet.create({
         color: "white",
         fontSize: 16,
         fontWeight: "bold",
+    },
+    headerAvatar: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        resizeMode: "cover",
     },
     list: {
         flex: 1,

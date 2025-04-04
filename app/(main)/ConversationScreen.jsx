@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import {
     StyleSheet,
     View,
@@ -20,20 +20,20 @@ import io from "socket.io-client";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AuthContext } from "../../Context/AuthContext"
 
 export default function ConversationScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
 
-    // Pull conversation from route params
     const conversation =
         typeof params.conversation === "string"
             ? JSON.parse(params.conversation)
             : params.conversation;
     const conversationId = conversation?._id;
 
-    // IMPORTANT: localUserId should come from your authentication context
-    const localUserId = "local-user-id"; // Replace with actual local user ID
+    // Get the authenticated user's id from AuthContext
+    const { userId } = useContext(AuthContext);
 
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState("");
@@ -43,15 +43,13 @@ export default function ConversationScreen() {
     const flatListRef = useRef(null);
     const socketRef = useRef(null);
 
-    // Replace these URLs with actual avatar URLs from your user profiles.
+    // Default avatars in case sender data isn't provided by backend.
     const localUserAvatar = "https://example.com/myLocalUser.jpg";
     const otherUserAvatar =
         conversation?.avatar || "https://via.placeholder.com/50";
 
-    // Initialize Socket.IO and join the conversation room
     useEffect(() => {
         if (!conversationId) return;
-
         socketRef.current = io("http://192.168.101.7:3001");
         socketRef.current.emit("joinConversation", conversationId);
 
@@ -69,7 +67,6 @@ export default function ConversationScreen() {
         };
     }, [conversationId]);
 
-    // Fetch existing messages from the server
     useEffect(() => {
         if (!conversationId) return;
         const fetchMessages = async () => {
@@ -84,11 +81,9 @@ export default function ConversationScreen() {
                 setIsLoading(false);
             }
         };
-
         fetchMessages();
     }, [conversationId]);
 
-    // Auto-scroll to latest message
     useEffect(() => {
         if (messages.length > 0) {
             setTimeout(() => {
@@ -99,7 +94,6 @@ export default function ConversationScreen() {
         }
     }, [messages]);
 
-    // Offline/online detection and sending queued messages
     useEffect(() => {
         const unsubscribe = NetInfo.addEventListener((state) => {
             const offline = !(state.isConnected && state.isInternetReachable);
@@ -121,6 +115,7 @@ export default function ConversationScreen() {
             if (msgsForThisConversation.length === 0) return;
             for (const msgData of msgsForThisConversation) {
                 try {
+                    console.log("Sending queued message:", msgData);
                     await apiClient.post(API.messages.send(conversationId), msgData);
                 } catch (error) {
                     console.error("Error sending queued message:", error);
@@ -133,13 +128,12 @@ export default function ConversationScreen() {
         }
     };
 
-    // Send a message (online or offline)
     const handleSendMessage = async () => {
         if (!newMessage.trim()) return;
         const messageData = {
             conversationId,
             text: newMessage,
-            senderId: localUserId, // include senderId for alignment
+            senderId: userId, // dynamic user id from context
         };
 
         if (!isOffline) {
@@ -164,14 +158,14 @@ export default function ConversationScreen() {
         }
     };
 
-    // Merge the server message, removing local pending duplicates if any
     const addServerMessage = (serverMessage) => {
         setMessages((prev) => {
             const filtered = prev.filter((msg) => {
                 if (msg._id && msg._id === serverMessage._id) return false;
-                // Remove pending message if it matches by sender and text
-                if (!msg._id && msg.senderId === serverMessage.senderId && msg.text === serverMessage.text) {
-                    return false;
+                if (!msg._id && msg.text === serverMessage.text) {
+                    const pendingSender = msg.senderId || (msg.sender ? msg.sender._id : "");
+                    const serverSender = serverMessage.sender ? serverMessage.sender._id : "";
+                    if (pendingSender === serverSender) return false;
                 }
                 return true;
             });
@@ -179,7 +173,6 @@ export default function ConversationScreen() {
         });
     };
 
-    // If offline, store message locally and show a pending message
     const storeMessageOffline = async (messageData) => {
         try {
             const storedQueue = await AsyncStorage.getItem("offlineQueue");
@@ -201,10 +194,17 @@ export default function ConversationScreen() {
         }
     };
 
-    // Render each message with left/right alignment based on senderId
     const renderMessage = ({ item }) => {
-        const isLocal = item.senderId === localUserId;
-        const avatarUri = isLocal ? localUserAvatar : otherUserAvatar;
+        const senderId = String(item.sender?._id);
+        const isLocal = senderId === String(userId);
+        console.log("Rendering message:", { text: item.text, senderId, userId, isLocal });
+
+        const avatarUri =
+            item.sender && item.sender.avatar
+                ? item.sender.avatar
+                : isLocal
+                    ? localUserAvatar
+                    : otherUserAvatar;
 
         return (
             <View
@@ -213,7 +213,6 @@ export default function ConversationScreen() {
                     isLocal ? styles.messageRowRight : styles.messageRowLeft,
                 ]}
             >
-                {/* Show avatar for other user's messages on the left */}
                 {!isLocal && (
                     <Image source={{ uri: avatarUri }} style={styles.avatarBubble} />
                 )}
@@ -222,14 +221,10 @@ export default function ConversationScreen() {
                         {item.text}
                     </Text>
                     <Text style={styles.messageTime}>
-                        {new Date(item.timestamp).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                        })}
+                        {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </Text>
                     {item.pending && <Text style={{ fontSize: 10, color: "red" }}> (Pending) </Text>}
                 </View>
-                {/* For local messages, show avatar on the right */}
                 {isLocal && (
                     <Image source={{ uri: avatarUri }} style={styles.avatarBubble} />
                 )}
@@ -250,9 +245,7 @@ export default function ConversationScreen() {
                 />
                 <View style={styles.headerTextContainer}>
                     <Text style={styles.name}>{conversation?.name || "Chat"}</Text>
-                    {conversation?.username && (
-                        <Text style={styles.username}>@{conversation.username}</Text>
-                    )}
+                    {conversation?.username && <Text style={styles.username}>@{conversation.username}</Text>}
                 </View>
             </LinearGradient>
             {isLoading ? (
@@ -268,11 +261,9 @@ export default function ConversationScreen() {
                     ref={flatListRef}
                     data={messages}
                     renderItem={renderMessage}
-                    keyExtractor={(item, index) => {
-                        if (item._id) return item._id.toString();
-                        if (item.localId) return item.localId;
-                        return `fallback-${index}`;
-                    }}
+                    keyExtractor={(item, index) =>
+                        item._id ? item._id.toString() : item.localId || `fallback-${index}`
+                    }
                     contentContainerStyle={styles.messagesContainer}
                 />
             )}
@@ -306,16 +297,15 @@ const styles = StyleSheet.create({
     backButton: { padding: 10 },
     backButtonText: { color: "white", fontSize: 24 },
     headerAvatar: { width: 40, height: 40, borderRadius: 20, marginLeft: 10 },
-    headerTextContainer: { flex: 1, marginLeft: 15, justifyContent: 'center' },
+    headerTextContainer: { flex: 1, marginLeft: 15, justifyContent: "center" },
     name: { color: "white", fontSize: 18, fontWeight: "bold" },
-    username: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
+    username: { color: "rgba(255,255,255,0.8)", fontSize: 14 },
     loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
     noMessagesContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
     noMessagesText: { fontSize: 16, color: "black" },
     messagesContainer: { padding: 10, paddingBottom: 20 },
-    // For message row, local messages align right, others left
     messageRow: { flexDirection: "row", alignItems: "flex-end", marginBottom: 10 },
-    messageRowLeft: { alignSelf: "flex-start", flexDirection: "row" },
+    messageRowLeft: { alignSelf: "flex-start" },
     messageRowRight: { alignSelf: "flex-end", flexDirection: "row-reverse" },
     avatarBubble: { width: 30, height: 30, borderRadius: 15, marginHorizontal: 5 },
     messageBubble: { maxWidth: "70%", padding: 10, borderRadius: 18 },

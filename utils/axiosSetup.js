@@ -38,13 +38,13 @@ const getBaseUrl = () => {
   return Platform.OS === "android"
     ? "http://10.0.2.2:3001/api/v1"
     : "http://192.168.101.7:3001/api/v1";
-  // : "http://100.64.243.138:3001/api/v1";
 };
 
 const apiClient = axios.create({
   baseURL: getBaseUrl(),
 });
 
+// Interceptor to catch expired token (if needed)
 export const setAuthInterceptor = (onTokenExpire) => {
   apiClient.interceptors.response.use(
     (response) => response,
