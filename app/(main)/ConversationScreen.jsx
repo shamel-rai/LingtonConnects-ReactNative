@@ -5,13 +5,13 @@ import {
     Text,
     FlatList,
     TouchableOpacity,
-    Image,
     StatusBar,
     SafeAreaView,
     TextInput,
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
+    Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import apiClient from "../../utils/axiosSetup";
@@ -20,20 +20,30 @@ import io from "socket.io-client";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AuthContext } from "../../Context/AuthContext"
+import { AuthContext } from "../../Context/AuthContext";
 
 export default function ConversationScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
 
+    // Parse conversation from route parameters
     const conversation =
         typeof params.conversation === "string"
             ? JSON.parse(params.conversation)
             : params.conversation;
     const conversationId = conversation?._id;
+    console.log("Conversation object:", conversation);
 
-    // Get the authenticated user's id from AuthContext
-    const { userId } = useContext(AuthContext);
+    // Get authenticated user's details from AuthContext
+    const { userId, username } = useContext(AuthContext);
+    console.log("Authenticated userId:", userId, "username:", username);
+
+    // Compute recipient: filter out the logged-in user from conversation.users
+    const recipient =
+        (conversation && conversation.users
+            ? conversation.users.find((user) => String(user._id) !== String(userId))
+            : {}) || {};
+    console.log("Computed recipient:", recipient);
 
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState("");
@@ -43,11 +53,7 @@ export default function ConversationScreen() {
     const flatListRef = useRef(null);
     const socketRef = useRef(null);
 
-    // Default avatars in case sender data isn't provided by backend.
-    const localUserAvatar = "https://example.com/myLocalUser.jpg";
-    const otherUserAvatar =
-        conversation?.avatar || "https://via.placeholder.com/50";
-
+    // Socket: join conversation room
     useEffect(() => {
         if (!conversationId) return;
         socketRef.current = io("http://192.168.101.7:3001");
@@ -55,6 +61,7 @@ export default function ConversationScreen() {
 
         socketRef.current.on("newMessage", (serverMessage) => {
             if (serverMessage.conversationId === conversationId) {
+                console.log("Received new message:", serverMessage);
                 addServerMessage(serverMessage);
             }
         });
@@ -67,12 +74,14 @@ export default function ConversationScreen() {
         };
     }, [conversationId]);
 
+    // Fetch messages for conversation
     useEffect(() => {
         if (!conversationId) return;
         const fetchMessages = async () => {
             setIsLoading(true);
             try {
                 const response = await apiClient.get(API.messages.conversation(conversationId));
+                console.log("Fetched messages:", response.data);
                 setMessages(response.data);
             } catch (error) {
                 console.error("Error fetching messages:", error?.response?.data || error.message);
@@ -84,16 +93,16 @@ export default function ConversationScreen() {
         fetchMessages();
     }, [conversationId]);
 
+    // Auto-scroll when messages update
     useEffect(() => {
-        if (messages.length > 0) {
+        if (messages.length > 0 && flatListRef.current) {
             setTimeout(() => {
-                if (flatListRef.current) {
-                    flatListRef.current.scrollToEnd({ animated: true });
-                }
+                flatListRef.current.scrollToEnd({ animated: true });
             }, 100);
         }
     }, [messages]);
 
+    // Listen for network changes
     useEffect(() => {
         const unsubscribe = NetInfo.addEventListener((state) => {
             const offline = !(state.isConnected && state.isInternetReachable);
@@ -133,7 +142,7 @@ export default function ConversationScreen() {
         const messageData = {
             conversationId,
             text: newMessage,
-            senderId: userId, // dynamic user id from context
+            senderId: userId, // dynamic user id
         };
 
         if (!isOffline) {
@@ -194,40 +203,81 @@ export default function ConversationScreen() {
         }
     };
 
+    // Render each message with a profile picture if available,
+    // otherwise display the sender's first initial dynamically.
     const renderMessage = ({ item }) => {
-        const senderId = String(item.sender?._id);
-        const isLocal = senderId === String(userId);
-        console.log("Rendering message:", { text: item.text, senderId, userId, isLocal });
+        // Determine if the message is from the logged-in user.
+        // If item.sender is an object, check its _id; otherwise, compare directly.
+        const isLocalUser = String(item.sender?._id || item.sender) === String(userId);
 
-        const avatarUri =
-            item.sender && item.sender.avatar
-                ? item.sender.avatar
-                : isLocal
-                    ? localUserAvatar
-                    : otherUserAvatar;
+        // Determine sender's initial:
+        // - If item.sender is an object with a username (or name), use its first letter.
+        // - Otherwise, if sender is a string, check if it equals userId.
+        //   If so, use the logged-in user's username; if not, use recipient's username.
+        const senderInitial = (() => {
+            if (item.sender && typeof item.sender === "object") {
+                return (item.sender.username || item.sender.name || "?")[0].toUpperCase();
+            } else {
+                if (String(item.sender) === String(userId)) {
+                    return username ? username[0].toUpperCase() : "?";
+                } else {
+                    return recipient.username ? recipient.username[0].toUpperCase() : "?";
+                }
+            }
+        })();
+
+        // Render avatar: if profilePicture exists in the sender object, use it; otherwise, display the initial.
+        const renderAvatar = () => {
+            if (item.sender && typeof item.sender === "object" && item.sender.profilePicture) {
+                return (
+                    <Image
+                        source={{ uri: item.sender.profilePicture }}
+                        style={styles.avatar}
+                    />
+                );
+            }
+            return (
+                <View style={styles.initialCircle}>
+                    <Text style={styles.initialText}>{senderInitial}</Text>
+                </View>
+            );
+        };
 
         return (
             <View
                 style={[
                     styles.messageRow,
-                    isLocal ? styles.messageRowRight : styles.messageRowLeft,
+                    isLocalUser ? styles.messageRowRight : styles.messageRowLeft,
                 ]}
             >
-                {!isLocal && (
-                    <Image source={{ uri: avatarUri }} style={styles.avatarBubble} />
-                )}
-                <View style={[styles.messageBubble, isLocal ? styles.userBubble : styles.otherBubble]}>
-                    <Text style={[styles.bubbleText, isLocal ? styles.userBubbleText : styles.otherBubbleText]}>
+                {/* Render avatar for remote messages */}
+                {!isLocalUser && renderAvatar()}
+                <View
+                    style={[
+                        styles.messageBubble,
+                        isLocalUser ? styles.userBubble : styles.otherBubble,
+                    ]}
+                >
+                    <Text
+                        style={[
+                            styles.bubbleText,
+                            isLocalUser ? styles.userBubbleText : styles.otherBubbleText,
+                        ]}
+                    >
                         {item.text}
                     </Text>
                     <Text style={styles.messageTime}>
-                        {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {new Date(item.timestamp).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                        })}
                     </Text>
-                    {item.pending && <Text style={{ fontSize: 10, color: "red" }}> (Pending) </Text>}
+                    {item.pending && (
+                        <Text style={{ fontSize: 10, color: "red" }}> (Pending) </Text>
+                    )}
                 </View>
-                {isLocal && (
-                    <Image source={{ uri: avatarUri }} style={styles.avatarBubble} />
-                )}
+                {/* Render avatar for local messages */}
+                {isLocalUser && renderAvatar()}
             </View>
         );
     };
@@ -239,13 +289,24 @@ export default function ConversationScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Text style={styles.backButtonText}>←</Text>
                 </TouchableOpacity>
-                <Image
-                    source={{ uri: conversation?.avatar || "https://via.placeholder.com/40" }}
-                    style={styles.headerAvatar}
-                />
+                {/* Header: Render recipient's profile picture if available */}
+                {recipient.profilePicture ? (
+                    <Image
+                        source={{ uri: recipient.profilePicture }}
+                        style={styles.avatarHeader}
+                    />
+                ) : (
+                    <View style={styles.initialCircleHeader}>
+                        <Text style={styles.initialTextHeader}>
+                            {recipient.username ? recipient.username[0].toUpperCase() : "?"}
+                        </Text>
+                    </View>
+                )}
                 <View style={styles.headerTextContainer}>
-                    <Text style={styles.name}>{conversation?.name || "Chat"}</Text>
-                    {conversation?.username && <Text style={styles.username}>@{conversation.username}</Text>}
+                    <Text style={styles.name}>{recipient.username || "Chat"}</Text>
+                    {recipient.username && (
+                        <Text style={styles.username}>@{recipient.username}</Text>
+                    )}
                 </View>
             </LinearGradient>
             {isLoading ? (
@@ -296,7 +357,15 @@ const styles = StyleSheet.create({
     header: { flexDirection: "row", alignItems: "center", padding: 15, backgroundColor: "#4A00E0" },
     backButton: { padding: 10 },
     backButtonText: { color: "white", fontSize: 24 },
-    headerAvatar: { width: 40, height: 40, borderRadius: 20, marginLeft: 10 },
+    initialCircleHeader: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "#fff",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    initialTextHeader: { color: "#4A00E0", fontSize: 18, fontWeight: "bold" },
     headerTextContainer: { flex: 1, marginLeft: 15, justifyContent: "center" },
     name: { color: "white", fontSize: 18, fontWeight: "bold" },
     username: { color: "rgba(255,255,255,0.8)", fontSize: 14 },
@@ -307,7 +376,28 @@ const styles = StyleSheet.create({
     messageRow: { flexDirection: "row", alignItems: "flex-end", marginBottom: 10 },
     messageRowLeft: { alignSelf: "flex-start" },
     messageRowRight: { alignSelf: "flex-end", flexDirection: "row-reverse" },
-    avatarBubble: { width: 30, height: 30, borderRadius: 15, marginHorizontal: 5 },
+    initialCircle: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        backgroundColor: "#ccc",
+        justifyContent: "center",
+        alignItems: "center",
+        marginHorizontal: 5,
+    },
+    initialText: { color: "#fff", fontSize: 14, fontWeight: "bold" },
+    avatar: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        marginHorizontal: 5,
+    },
+    avatarHeader: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        marginHorizontal: 5,
+    },
     messageBubble: { maxWidth: "70%", padding: 10, borderRadius: 18 },
     userBubble: { backgroundColor: "#0084FF", borderBottomRightRadius: 5 },
     otherBubble: { backgroundColor: "#E8E8E8", borderBottomLeftRadius: 5 },

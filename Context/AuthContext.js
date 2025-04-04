@@ -1,4 +1,5 @@
-// AuthProvider.js
+// Context/AuthProvider.js
+
 import React, { createContext, useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
@@ -9,15 +10,14 @@ export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const router = useRouter();
-
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authToken, setAuthToken] = useState(null);
   const [userId, setUserId] = useState(null);
   const [username, setUsername] = useState(null);
+  const [avatar, setAvatar] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Register the Axios interceptor.
     setAuthInterceptor(() => logout());
 
     const checkAuthentication = async () => {
@@ -25,18 +25,19 @@ export const AuthProvider = ({ children }) => {
         const token = await SecureStore.getItemAsync("authToken");
         const storedUserId = await SecureStore.getItemAsync("userId");
         const storedUsername = await SecureStore.getItemAsync("username");
+        const storedAvatar = await SecureStore.getItemAsync("avatar");
 
-        console.log("AuthProvider: Checking authentication...");
-        console.log("Stored Token:", token);
-        console.log("Stored UserID:", storedUserId);
-        console.log("Stored Username:", storedUsername);
+        console.log("AuthProvider: token =", token);
+        console.log("AuthProvider: userId =", storedUserId);
+        console.log("AuthProvider: username =", storedUsername);
+        console.log("AuthProvider: avatar =", storedAvatar);
 
         if (token && storedUserId && storedUsername) {
           setAuthToken(token);
           setUserId(storedUserId);
           setUsername(storedUsername);
+          setAvatar(storedAvatar);
           setIsAuthenticated(true);
-          // Set the Authorization header for all axios requests
           apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
         } else {
           await logout();
@@ -52,72 +53,45 @@ export const AuthProvider = ({ children }) => {
     checkAuthentication();
   }, []);
 
-  const login = async (token, userId, username) => {
-    console.log("Login Function Called:", { token, userId, username });
-
+  const login = async (token, userId, username, avatarUrl) => {
     try {
-      // Update state immediately
       setAuthToken(token);
       setUserId(userId);
       setUsername(username);
+      setAvatar(avatarUrl);
       setIsAuthenticated(true);
 
-      // Store in SecureStore
       await SecureStore.setItemAsync("authToken", token);
       await SecureStore.setItemAsync("userId", userId);
       await SecureStore.setItemAsync("username", username);
+      if (avatarUrl) {
+        await SecureStore.setItemAsync("avatar", avatarUrl);
+      }
 
-      // Set the Authorization header for axios
       apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-      console.log("Auth data updated instantly!");
     } catch (error) {
       console.error("Error storing auth data:", error);
     }
   };
 
   const logout = async () => {
-    console.log("Logout Function Called");
-
     try {
       await SecureStore.deleteItemAsync("authToken");
       await SecureStore.deleteItemAsync("userId");
       await SecureStore.deleteItemAsync("username");
+      await SecureStore.deleteItemAsync("avatar");
     } catch (error) {
       console.error("Error removing auth data:", error);
     }
-
     setIsAuthenticated(false);
     setAuthToken(null);
     setUserId(null);
     setUsername(null);
+    setAvatar(null);
     setLoading(false);
-
-    // Remove the Authorization header from axios
     delete apiClient.defaults.headers.common["Authorization"];
-
     router.replace("/WelcomePage");
   };
-
-  // Optionally, refresh the auth state if needed.
-  useEffect(() => {
-    const refreshAuthState = async () => {
-      const token = await SecureStore.getItemAsync("authToken");
-      const storedUserId = await SecureStore.getItemAsync("userId");
-      const storedUsername = await SecureStore.getItemAsync("username");
-
-      if (token && storedUserId && storedUsername) {
-        setAuthToken(token);
-        setUserId(storedUserId);
-        setUsername(storedUsername);
-        setIsAuthenticated(true);
-      } else {
-        await logout();
-      }
-    };
-
-    refreshAuthState();
-  }, [authToken, userId, username]);
 
   if (loading) {
     return (
@@ -134,6 +108,7 @@ export const AuthProvider = ({ children }) => {
         authToken,
         userId,
         username,
+        avatar,
         login,
         logout,
       }}
