@@ -3,9 +3,9 @@ import {
     StyleSheet,
     View,
     Text,
+    Image,
     FlatList,
     TouchableOpacity,
-    Image,
     StatusBar,
     SafeAreaView,
 } from "react-native";
@@ -17,15 +17,15 @@ import { AuthContext } from "../../Context/AuthContext";
 
 const ASSET_BASEURL = "http://192.168.101.7:3001";
 
-// Helper function to get full avatar URL
-const getAvatarUrl = (avatar) => {
-    if (!avatar) {
+// Helper function to get full avatar URL (used for header only)
+const getAvatarUrl = (pic) => {
+    if (!pic) {
         return "https://via.placeholder.com/50?text=No+Avatar";
     }
-    if (avatar.startsWith("http")) {
-        return avatar;
+    if (pic.startsWith("http")) {
+        return pic;
     }
-    return `${ASSET_BASEURL}${avatar.startsWith("/") ? "" : "/"}${avatar}`;
+    return `${ASSET_BASEURL}${pic.startsWith("/") ? "" : "/"}${pic}`;
 };
 
 export default function MessageListScreen() {
@@ -51,10 +51,9 @@ export default function MessageListScreen() {
             }
         };
 
-        // Fetch full user profile data (including avatar)
+        // Fetch full user profile data (including profile picture)
         const fetchUserProfile = async () => {
             try {
-                // Use API.profile.get instead of API.user.get
                 const response = await apiClient.get(API.profile.get(userId), {
                     headers: { Authorization: `Bearer ${authToken}` },
                 });
@@ -74,6 +73,16 @@ export default function MessageListScreen() {
         router.push("/UserProfilePage");
     };
 
+    // Helper to compute initials from a name string.
+    const getInitials = (name) => {
+        if (!name) return "";
+        const words = name.split(" ");
+        // Limit to first two letters if more than one word
+        return words.length === 1
+            ? words[0].charAt(0).toUpperCase()
+            : (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+    };
+
     const renderItem = ({ item }) => {
         // Find the other user in the conversation
         const otherUser =
@@ -87,9 +96,21 @@ export default function MessageListScreen() {
                     user._id.toString() !== userId.toString()
             );
 
-        const avatarUri = getAvatarUrl(otherUser && otherUser.avatar);
-        const displayName =
-            (otherUser && (otherUser.username || otherUser.name)) || "Unknown User";
+        // Grab the other user's details
+        const otherUserPic = otherUser && (otherUser.avatar || otherUser.profilePicture);
+        // Grab your own details (from userProfile)
+        const myPic = userProfile && (userProfile.avatar || userProfile.profilePicture);
+
+        // Decide whose name to display based on the last message sender.
+        // (Assuming your backend sets item.lastMessage.senderId)
+        const lastMessageSenderId = item.lastMessage?.senderId;
+        const isMyLastMessage = lastMessageSenderId === userId;
+        const displayName = isMyLastMessage
+            ? (userProfile && (userProfile.username || userProfile.name)) || "You"
+            : (otherUser && (otherUser.username || otherUser.name)) || "Unknown User";
+
+        // Instead of showing the avatar image, we'll show initials.
+        const initials = getInitials(displayName);
 
         return (
             <TouchableOpacity
@@ -101,14 +122,17 @@ export default function MessageListScreen() {
                     });
                 }}
             >
-                <View style={styles.avatarContainer}>
-                    <Image source={{ uri: avatarUri }} style={styles.avatar} />
-                </View>
                 <View style={styles.messageContent}>
                     <Text style={styles.name}>{displayName}</Text>
-                    <Text style={styles.messageText} numberOfLines={1}>
-                        {item.lastMessage ? item.lastMessage.text : "No messages yet"}
-                    </Text>
+                    <View style={styles.messageRow}>
+                        {/* Instead of an Image, display a circle with initials */}
+                        <View style={styles.initialsContainer}>
+                            <Text style={styles.initialsText}>{initials}</Text>
+                        </View>
+                        <Text style={styles.messageText} numberOfLines={1}>
+                            {item.lastMessage ? item.lastMessage.text : "No messages yet"}
+                        </Text>
+                    </View>
                 </View>
                 <Text style={styles.time}>
                     {item.lastMessage
@@ -119,9 +143,11 @@ export default function MessageListScreen() {
         );
     };
 
-    // Use the fetched profile avatar if available; otherwise, fall back to the initial letter
-    const headerAvatarUri =
-        userProfile && userProfile.avatar ? getAvatarUrl(userProfile.avatar) : null;
+    // Use your own profile pic for the header if available; otherwise, fallback to initials.
+    const headerPicUri =
+        userProfile && (userProfile.avatar || userProfile.profilePicture)
+            ? getAvatarUrl(userProfile.avatar || userProfile.profilePicture)
+            : null;
 
     return (
         <SafeAreaView style={styles.container}>
@@ -137,8 +163,8 @@ export default function MessageListScreen() {
                             <Text style={styles.welcomeText}>Welcome,</Text>
                             <Text style={styles.usernameText}>{username || "User"}</Text>
                         </View>
-                        {headerAvatarUri ? (
-                            <Image source={{ uri: headerAvatarUri }} style={styles.headerAvatar} />
+                        {headerPicUri ? (
+                            <Image source={{ uri: headerPicUri }} style={styles.headerAvatar} />
                         ) : (
                             <View style={styles.profileAvatarContainer}>
                                 <Text style={styles.profileInitial}>
@@ -234,19 +260,29 @@ const styles = StyleSheet.create({
         borderBottomWidth: 0.5,
         borderBottomColor: "#ccc",
         alignItems: "center",
-    },
-    avatarContainer: {
-        position: "relative",
-    },
-    avatar: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        resizeMode: "cover",
+        justifyContent: "space-between",
     },
     messageContent: {
         flex: 1,
-        marginLeft: 15,
+        marginRight: 10,
+    },
+    messageRow: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    initialsContainer: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        backgroundColor: "#8E2DE2",
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 8,
+    },
+    initialsText: {
+        color: "#fff",
+        fontSize: 14,
+        fontWeight: "bold",
     },
     name: {
         color: "black",
