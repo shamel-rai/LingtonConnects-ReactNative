@@ -15,7 +15,9 @@ import apiClient from "../../utils/axiosSetup";
 import API from "../../utils/api";
 import { AuthContext } from "../../Context/AuthContext";
 
-const ASSET_BASEURL = "http://192.168.101.7:3001";
+const ASSET_BASEURL = "http://192.168.101.6:3001";
+// const ASSET_BASEURL = "http://100.64.243.138:3001";
+
 
 // Helper function to get full avatar URL (used for header only)
 const getAvatarUrl = (pic) => {

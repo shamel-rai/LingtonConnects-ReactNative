@@ -25,6 +25,7 @@ import { AuthContext } from "../../Context/AuthContext";
 export default function ConversationScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
+    const Url = "http://192.168.101.6:3001";
 
     // Parse conversation from route parameters
     const conversation =
@@ -56,7 +57,8 @@ export default function ConversationScreen() {
     // Socket: join conversation room
     useEffect(() => {
         if (!conversationId) return;
-        socketRef.current = io("http://192.168.101.7:3001");
+        // -------------------------------------------------------------------
+        socketRef.current = io(Url);
         socketRef.current.emit("joinConversation", conversationId);
 
         socketRef.current.on("newMessage", (serverMessage) => {

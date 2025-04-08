@@ -1,4 +1,4 @@
-const BASE_URL = "http://192.168.101.7:3001/api/v1";
+const BASE_URL = "http://192.168.101.6:3001/api/v1";
 // const BASE_URL = "http://100.64.243.138:3001/api/v1";
 
 const API = {
@@ -45,6 +45,13 @@ const API = {
     getAll: (userId) => `${BASE_URL}/conversations?userId=${userId}`,
     getOrCreate: `${BASE_URL}/conversations/getOrCreate`,
   },
+  studybuddy: {
+    getAll: () => `${BASE_URL}/studybuddy`,
+    create: () => `${BASE_URL}/studybuddy`,
+    update: (id) => `${BASE_URL}/studybuddy/${id}`,
+    delete: (id) => `${BASE_URL}/studybuddy/${id}`,
+  },
+
 };
 
 module.exports = API;

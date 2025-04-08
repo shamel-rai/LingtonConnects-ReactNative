@@ -18,7 +18,9 @@ import { AuthContext } from "../../Context/AuthContext";
 import API from "../../utils/api";
 import apiClient from "../../utils/axiosSetup";
 
-const ASSET_BASEURL = `http://192.168.101.7:3001`;
+const ASSET_BASEURL = `http://192.168.101.6:3001`;
+// const ASSET_BASEURL = "http://100.64.243.138:3001";
+
 
 export default function ProfilePage() {
   const { userId, authToken, profilePicture } = useContext(AuthContext);

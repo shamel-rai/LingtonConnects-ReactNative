@@ -19,7 +19,7 @@ import { AuthContext } from "../../Context/AuthContext";
 import API from "../../utils/api";
 import apiClient from "../../utils/axiosSetup";
 
-const ASSET_BASEURL = `http://192.168.101.7:3001`;
+const ASSET_BASEURL = `http://192.168.101.6:3001`;
 
 // If your backend has multiple video types, add them here
 const videoExtensions = [".mp4", ".wmv", ".flv", ".mkv", ".mov"];
