@@ -104,8 +104,6 @@ export default function SearchProfileScreen({ userId, onBack }) {
     // ----------------------------------------------
     // Follower / following / post counts
     // ----------------------------------------------
-    // If your backend has numeric fields like followersCount/followingCount, we'll check them
-    // Otherwise, we'll assume `profile.followers` or `profile.following` are arrays
     const getFollowersCount = () => {
         if (!profile) return 0;
         if (typeof profile.followersCount === "number") {
@@ -128,7 +126,6 @@ export default function SearchProfileScreen({ userId, onBack }) {
         return 0;
     };
 
-    // For posts, we just do posts.length
     const getPostsCount = () => {
         return posts.length || 0;
     };
@@ -225,7 +222,6 @@ export default function SearchProfileScreen({ userId, onBack }) {
         );
     };
 
-    // Helpers for post item
     const getUserProfilePicUrl = (user) => {
         if (!user?.profilePicture) return "https://via.placeholder.com/100";
         return user.profilePicture.startsWith("http")
@@ -241,7 +237,7 @@ export default function SearchProfileScreen({ userId, onBack }) {
     };
 
     // ----------------------------------------------
-    // 6) Render each post (identical to ProfilePage)
+    // 6) Render each post
     // ----------------------------------------------
     const renderPost = ({ item }) => {
         let mediaUrl = null;
@@ -251,9 +247,9 @@ export default function SearchProfileScreen({ userId, onBack }) {
                 ? firstMedia
                 : `${ASSET_BASEURL}/${firstMedia}`;
         }
-        const isVideo =
-            mediaUrl &&
-            videoExtensions.some((ext) => mediaUrl.toLowerCase().endsWith(ext));
+        const isVideo = mediaUrl && videoExtensions.some((ext) =>
+            mediaUrl.toLowerCase().endsWith(ext)
+        );
 
         const fallbackName = getFallbackName(item.user);
 
@@ -478,6 +474,23 @@ export default function SearchProfileScreen({ userId, onBack }) {
 }
 
 // ----------------------------------
+// ADD THIS FUNCTION FOR "CONNECT"
+// ----------------------------------
+export async function handleConnectProfile(userId, authToken, callback) {
+    try {
+        console.log("handleConnectProfile triggered for userId:", userId);
+        // Example: If you want to "connect" them on the backend:
+        // const response = await apiClient.put(API.profile.connect(userId), {}, {
+        //   headers: { Authorization: `Bearer ${authToken}` }
+        // });
+        // Optionally call callback() if you want to refresh the profile, etc.
+        if (callback) callback();
+    } catch (error) {
+        console.error("Error connecting to profile:", error?.response?.data || error.message);
+    }
+}
+
+// ----------------------------------
 // Styles
 // ----------------------------------
 const styles = StyleSheet.create({
@@ -549,7 +562,6 @@ const styles = StyleSheet.create({
     },
     statItem: { alignItems: "center", flex: 1 },
     statDivider: { width: 1, height: "100%", backgroundColor: "rgba(255, 255, 255, 0.3)" },
-    // Fix: Changed statNumber to profileStatNumber for profile stats
     profileStatNumber: { fontSize: 20, fontWeight: "bold", color: "#fff" },
     statLabel: { color: "rgba(255, 255, 255, 0.8)", fontSize: 14, marginTop: 4 },
     actionButtons: { flexDirection: "row", gap: 10 },
@@ -582,7 +594,7 @@ const styles = StyleSheet.create({
     noPosts: { padding: 40, alignItems: "center" },
     noPostsText: { fontSize: 16, color: "#666" },
 
-    // Post card styles (identical to your ProfilePage)
+    // Post card styles
     postCard: { margin: 10, borderRadius: 10, overflow: "hidden" },
     postGradient: { padding: 15, borderRadius: 10 },
     postHeader: {
@@ -612,7 +624,6 @@ const styles = StyleSheet.create({
         borderTopColor: "#eee",
     },
     statButton: { flexDirection: "row", alignItems: "center" },
-    // Fix: Changed to statValueText for post interactions
     statValueText: { marginLeft: 5, fontSize: 14, color: "#666" },
     statValueActive: { color: "#4A00E0" },
     timeStamp: { fontSize: 12, color: "#999", marginTop: 10 },
