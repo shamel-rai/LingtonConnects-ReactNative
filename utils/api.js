@@ -51,6 +51,12 @@ const API = {
     update: (id) => `${BASE_URL}/studybuddy/${id}`,
     delete: (id) => `${BASE_URL}/studybuddy/${id}`,
   },
+  notifications: {
+    getAll: (userId) => `${BASE_URL}/notifications/${userId}`,
+    // You can add additional endpoints, e.g.:
+    markAsRead: (notificationId) => `${BASE_URL}/notifications/${notificationId}/read`,
+    markAllAsRead: (userId) => `${BASE_URL}/notifications/${userId}/read-all`,
+  }
 
 };
 

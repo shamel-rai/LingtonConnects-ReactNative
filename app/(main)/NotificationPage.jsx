@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext, useRef } from "react";
 import {
   View,
   Text,
@@ -12,176 +12,211 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Icon from "react-native-vector-icons/Feather";
+import apiClient from "../../utils/axiosSetup";
+import API from "../../utils/api";
+import { AuthContext } from "../../Context/AuthContext";
+import { io } from "socket.io-client";
 
 const THEME = {
-  primary: ["#4A00E0", "#8E2DE2"], // Profile gradient colors
+  primary: ["#4A00E0", "#8E2DE2"],
   secondary: ["#7A88FF", "#FD71AF"],
   optional: ["#FF8F71", "#FF3D77"],
-  background: "#F0F2F5", // Lighter gray background
-  cardBg: "#FFFFFF", // White cards for contrast
-  textPrimary: "#1A1A1A", // Darker text for better readability
+  background: "#F0F2F5",
+  cardBg: "#FFFFFF",
+  textPrimary: "#1A1A1A",
   textSecondary: "#666666",
 };
 
-// Mock data - Replace with actual API calls
-const mockNotifications = [
-  {
-    id: "1",
-    type: "like",
-    user: {
-      id: "1",
-      name: "John Doe",
-      avatar: "https://via.placeholder.com/50",
-    },
-    content: "liked your post",
-    postPreview: "Amazing sunset photo!",
-    timestamp: Date.now() - 300000,
-    read: false,
-  },
-  {
-    id: "2",
-    type: "comment",
-    user: {
-      id: "2",
-      name: "Jane Smith",
-      avatar: "https://via.placeholder.com/50",
-    },
-    content: "commented on your post",
-    postPreview: "Great work! Keep it up! 🎉",
-    timestamp: Date.now() - 3600000,
-    read: false,
-  },
-  {
-    id: "3",
-    type: "follow",
-    user: {
-      id: "3",
-      name: "Mike Johnson",
-      avatar: "https://via.placeholder.com/50",
-    },
-    content: "started following you",
-    timestamp: Date.now() - 86400000,
-    read: true,
-  },
-];
+// Base URL for your server (adjust if needed)
+const BASE_URL = "http://192.168.101.6:3001";
 
-const NotificationSystem = () => {
+const getNotificationIcon = (type) => {
+  switch (type) {
+    case "like": return "heart";
+    case "comment": return "message-circle";
+    case "follow": return "user-plus";
+    case "share": return "share-2";
+    default: return "bell";
+  }
+};
+
+const getActionText = (type) => {
+  switch (type) {
+    case "like": return "liked your post";
+    case "comment": return "commented on your post";
+    case "follow": return "started following you";
+    case "share": return "shared your post";
+    default: return "sent you a notification";
+  }
+};
+
+const formatTimestamp = (timestamp) => {
+  const diff = Date.now() - new Date(timestamp).getTime();
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  return `${days}d ago`;
+};
+
+const NotificationPage = () => {
   const [notifications, setNotifications] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  useEffect(() => {
-    fetchNotifications();
-  }, []);
+  const { userId } = useContext(AuthContext);
+  const socketRef = useRef(null);
 
   useEffect(() => {
-    const count = notifications.filter(
-      (notification) => !notification.read
-    ).length;
+    if (!userId || !userId.trim()) {
+      console.log("No valid userId for Socket.IO connection.");
+      setLoading(false);
+      return;
+    }
+
+    console.log("Connecting to Socket.IO with userId:", userId);
+    socketRef.current = io("http://192.168.101.6:3001", {
+      query: { userId },
+      transports: ["websocket"],
+    });
+
+    socketRef.current.on("connect", () => {
+      console.log("Socket connected:", socketRef.current.id);
+      socketRef.current.emit("joinNotifications", userId);
+      console.log("Joined notifications room:", userId);
+    });
+
+    socketRef.current.on("newNotification", (newNotification) => {
+      console.log("Received newNotification:", newNotification);
+      setNotifications((prev) => [newNotification, ...prev]);
+    });
+
+    socketRef.current.on("disconnect", () => {
+      console.log("Socket disconnected");
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.emit("leaveNotifications", userId);
+        socketRef.current.disconnect();
+      }
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (userId && userId.trim().length > 0) {
+      fetchNotifications();
+    } else {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    const count = notifications.filter((n) => !n.read).length;
     setUnreadCount(count);
   }, [notifications]);
 
   const fetchNotifications = async () => {
-    // Simulate API call
-    setTimeout(() => {
-      setNotifications(mockNotifications);
+    try {
+      const response = await apiClient.get(API.notifications.getAll(userId));
+      if (response.data.success) {
+        console.log("Fetched notifications:", response.data.notifications);
+        setNotifications(response.data.notifications);
+      } else {
+        console.error("Error fetching notifications:", response.data.message);
+      }
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchNotifications();
+    if (userId && userId.trim().length > 0) {
+      await fetchNotifications();
+    }
     setRefreshing(false);
   };
 
   const markAsRead = async (notificationId) => {
-    // Simulate API call
-    setNotifications((prevNotifications) =>
-      prevNotifications.map((notification) =>
-        notification.id === notificationId
-          ? { ...notification, read: true }
-          : notification
-      )
-    );
-  };
-
-  const markAllAsRead = async () => {
-    // Simulate API call
-    setNotifications((prevNotifications) =>
-      prevNotifications.map((notification) => ({ ...notification, read: true }))
-    );
-  };
-
-  const deleteNotification = async (notificationId) => {
-    // Simulate API call
-    setNotifications((prevNotifications) =>
-      prevNotifications.filter(
-        (notification) => notification.id !== notificationId
-      )
-    );
-  };
-
-  const getNotificationIcon = (type) => {
-    switch (type) {
-      case "like":
-        return "heart";
-      case "comment":
-        return "message-circle";
-      case "follow":
-        return "user-plus";
-      default:
-        return "bell";
+    try {
+      await apiClient.patch(API.notifications.markAsRead(notificationId));
+      setNotifications((prev) =>
+        prev.map((notif) =>
+          notif._id === notificationId ? { ...notif, read: true } : notif
+        )
+      );
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
     }
   };
 
-  const formatTimestamp = (timestamp) => {
-    const diff = Date.now() - timestamp;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    return `${days}d ago`;
+  const markAllAsRead = async () => {
+    try {
+      await apiClient.patch(API.notifications.markAllAsRead(userId));
+      setNotifications((prev) => prev.map((notif) => ({ ...notif, read: true })));
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+    }
   };
 
-  const renderNotification = ({ item }) => (
-    <TouchableOpacity
-      style={[styles.notificationCard, item.read && styles.readCard]}
-      onPress={() => markAsRead(item.id)}
-    >
-      <View style={styles.notificationContent}>
-        <Image source={{ uri: item.user.avatar }} style={styles.avatar} />
+  // This is where we handle the "relative path" from your DB
+  const getFullImageUrl = (profilePicture) => {
+    if (!profilePicture) {
+      return "https://via.placeholder.com/50"; // fallback
+    }
+    // If it's already absolute (starts with http), use it directly
+    if (profilePicture.startsWith("http")) {
+      return profilePicture;
+    }
+    // Otherwise, prepend the base server URL
+    return BASE_URL + profilePicture;
+  };
 
-        <View style={styles.textContainer}>
-          <View style={styles.headerContainer}>
-            <Text style={styles.username}>{item.user.name}</Text>
-            <Text style={styles.timestamp}>
-              {formatTimestamp(item.timestamp)}
-            </Text>
+  const renderNotification = ({ item }) => {
+    const sender = item.senderId;
+    const senderName = sender?.username || "Someone";
+
+    // The DB might store the path as "/uploads/..." => Prepend your base server URL
+    const senderPic = getFullImageUrl(sender?.profilePicture);
+    const actionText = getActionText(item.type);
+
+    return (
+      <TouchableOpacity
+        style={[styles.notificationCard, item.read && styles.readCard]}
+        onPress={() => markAsRead(item._id)}
+      >
+        <View style={styles.notificationContent}>
+          <Image
+            source={{ uri: senderPic }}
+            style={styles.avatar}
+          />
+          <View style={styles.textContainer}>
+            <View style={styles.headerContainer}>
+              <Text style={styles.notificationLine}>
+                <Text style={styles.username}>{senderName}</Text> {actionText}
+              </Text>
+              <Text style={styles.timestamp}>
+                {formatTimestamp(item.createdAt)}
+              </Text>
+            </View>
           </View>
-
-          <Text style={styles.content}>
-            <Text style={styles.action}>{item.content}</Text>
-            {item.postPreview && (
-              <Text style={styles.preview}>{` "${item.postPreview}"`}</Text>
-            )}
-          </Text>
+          <LinearGradient
+            colors={THEME.primary}
+            style={styles.iconContainer}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Icon name={getNotificationIcon(item.type)} size={16} color="#FFF" />
+          </LinearGradient>
         </View>
-
-        <LinearGradient
-          colors={THEME.primary}
-          style={styles.iconContainer}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Icon name={getNotificationIcon(item.type)} size={16} color="#FFF" />
-        </LinearGradient>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const renderHeader = () => (
     <LinearGradient
@@ -213,7 +248,7 @@ const NotificationSystem = () => {
       <FlatList
         data={notifications}
         renderItem={renderNotification}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item._id.toString()}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -231,8 +266,9 @@ const NotificationSystem = () => {
   );
 };
 
-export default NotificationSystem;
+export default NotificationPage;
 
+// Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -308,26 +344,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 4,
+  },
+  notificationLine: {
+    flex: 1,
+    fontSize: 14,
   },
   username: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
     color: THEME.textPrimary,
   },
   timestamp: {
     fontSize: 12,
     color: THEME.textSecondary,
-  },
-  content: {
-    fontSize: 14,
-    color: THEME.textSecondary,
-  },
-  action: {
-    color: THEME.textSecondary,
-  },
-  preview: {
-    fontStyle: "italic",
   },
   iconContainer: {
     width: 32,
