@@ -21,7 +21,7 @@ import apiClient from "../../utils/axiosSetup";
 
 const ASSET_BASEURL = `http://192.168.101.6:3001`;
 
-// If your backend has multiple video types, add them here
+// For video file extensions
 const videoExtensions = [".mp4", ".wmv", ".flv", ".mkv", ".mov"];
 
 export default function SearchProfileScreen({ userId, onBack }) {
@@ -29,17 +29,18 @@ export default function SearchProfileScreen({ userId, onBack }) {
     const { userId: currentUserId, authToken } = useContext(AuthContext);
 
     const [profile, setProfile] = useState(null);
+    const [followingCount, setFollowingCount] = useState(0);
     const [posts, setPosts] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
     const [isFollowing, setIsFollowing] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    // For dynamic saving/liking
+    // For dynamic saving/liking posts
     const [savedPosts, setSavedPosts] = useState([]);
 
-    // ----------------------------------------------
+    // -------------------------------
     // 1) Fetch the user's profile
-    // ----------------------------------------------
+    // -------------------------------
     const fetchProfile = async () => {
         if (!userId) return;
         try {
@@ -47,9 +48,10 @@ export default function SearchProfileScreen({ userId, onBack }) {
                 headers: { Authorization: `Bearer ${authToken}` },
             });
             const data = response.data;
+            console.log("Profile data:", data);
             setProfile(data);
 
-            // Check if current user is in the user's followers
+            // Check if the current user is a follower
             if (
                 data.followers &&
                 Array.isArray(data.followers) &&
@@ -59,28 +61,42 @@ export default function SearchProfileScreen({ userId, onBack }) {
             } else {
                 setIsFollowing(false);
             }
-            setLoading(false);
         } catch (error) {
             console.error("Error fetching profile:", error.response?.data || error.message);
-            setLoading(false);
         }
     };
 
-    // ----------------------------------------------
-    // 2) Fetch the user's posts
-    // ----------------------------------------------
+    // -------------------------------
+    // 2) Fetch the user's following list
+    // -------------------------------
+    const fetchFollowing = async () => {
+        if (!userId) return;
+        try {
+            const response = await apiClient.get(API.profile.following(userId), {
+                headers: { Authorization: `Bearer ${authToken}` },
+            });
+            const data = response.data;
+            // Assume the API returns an array. If it returns an object with a count, adjust accordingly.
+            const count = Array.isArray(data) ? data.length : (data.count || 0);
+            setFollowingCount(count);
+        } catch (error) {
+            console.error("Error fetching following:", error.response?.data || error.message);
+        }
+    };
+
+    // -------------------------------
+    // 3) Fetch the user's posts
+    // -------------------------------
     const fetchUserPosts = async () => {
         if (!userId) return;
         try {
-            // This endpoint returns something like { message: ..., posts: [...] }
             const response = await apiClient.get(API.posts.getUserPost(userId), {
                 headers: { Authorization: `Bearer ${authToken}` },
             });
             console.log("Fetched posts:", response.data);
-
             const data = Array.isArray(response.data.posts)
                 ? response.data.posts
-                : response.data; // if the server directly returns an array
+                : response.data;
             setPosts(data || []);
         } catch (error) {
             console.error("Error fetching posts:", error.response?.data || error.message);
@@ -88,22 +104,23 @@ export default function SearchProfileScreen({ userId, onBack }) {
         }
     };
 
+    // -------------------------------
+    // Load profile, following, and posts
+    // -------------------------------
     useEffect(() => {
-        fetchProfile();
-        fetchUserPosts();
+        Promise.all([fetchProfile(), fetchFollowing(), fetchUserPosts()]).then(() => setLoading(false));
     }, [userId]);
 
     // Pull-to-refresh
     const onRefresh = async () => {
         setRefreshing(true);
-        await fetchProfile();
-        await fetchUserPosts();
+        await Promise.all([fetchProfile(), fetchFollowing(), fetchUserPosts()]);
         setRefreshing(false);
     };
 
-    // ----------------------------------------------
-    // Follower / following / post counts
-    // ----------------------------------------------
+    // -------------------------------
+    // Follower / Following / Posts counts
+    // -------------------------------
     const getFollowersCount = () => {
         if (!profile) return 0;
         if (typeof profile.followersCount === "number") {
@@ -116,38 +133,31 @@ export default function SearchProfileScreen({ userId, onBack }) {
     };
 
     const getFollowingCount = () => {
-        if (!profile) return 0;
-        if (typeof profile.followingCount === "number") {
-            return profile.followingCount;
-        }
-        if (Array.isArray(profile.following)) {
-            return profile.following.length;
-        }
-        return 0;
+        return followingCount;
     };
 
     const getPostsCount = () => {
         return posts.length || 0;
     };
 
-    // ----------------------------------------------
-    // Build user's profilePicture URL
-    // ----------------------------------------------
+    // Build Profile Picture URL
     const profilePictureUrl = profile?.profilePicture
         ? profile.profilePicture.startsWith("http")
             ? profile.profilePicture
             : `${ASSET_BASEURL}${profile.profilePicture}`
         : "https://via.placeholder.com/150";
 
-    // ----------------------------------------------
-    // 3) Follow / Unfollow
-    // ----------------------------------------------
+    // -------------------------------
+    // 4) Follow / Unfollow Handlers
+    // -------------------------------
     const handleFollow = async () => {
         try {
             await apiClient.put(API.profile.follow(userId), {}, {
                 headers: { Authorization: `Bearer ${authToken}` },
             });
+            // Refresh profile and following after following action
             fetchProfile();
+            fetchFollowing();
         } catch (error) {
             console.error("Error following user:", error.message);
         }
@@ -159,14 +169,15 @@ export default function SearchProfileScreen({ userId, onBack }) {
                 headers: { Authorization: `Bearer ${authToken}` },
             });
             fetchProfile();
+            fetchFollowing();
         } catch (error) {
             console.error("Error unfollowing user:", error.message);
         }
     };
 
-    // ----------------------------------------------
-    // 4) Start a conversation & navigate
-    // ----------------------------------------------
+    // -------------------------------
+    // 5) Start a conversation & navigation
+    // -------------------------------
     const getOrCreateConversation = async (user1, user2) => {
         const payload = { user1, user2 };
         const response = await apiClient.post(API.conversations.getOrCreate, payload, {
@@ -190,16 +201,12 @@ export default function SearchProfileScreen({ userId, onBack }) {
         }
     };
 
-    // ----------------------------------------------
-    // 5) Toggle Like / Save
-    // ----------------------------------------------
+    // -------------------------------
+    // 6) Toggle Like / Save Handlers
+    // -------------------------------
     const toggleLike = async (postId) => {
         try {
-            await apiClient.post(
-                API.posts.likePost(postId),
-                {},
-                { headers: { Authorization: `Bearer ${authToken}` } }
-            );
+            await apiClient.post(API.posts.likePost(postId), {}, { headers: { Authorization: `Bearer ${authToken}` } });
             setPosts((prevPosts) =>
                 prevPosts.map((p) =>
                     p._id === postId
@@ -236,9 +243,9 @@ export default function SearchProfileScreen({ userId, onBack }) {
         return user.username || "User";
     };
 
-    // ----------------------------------------------
-    // 6) Render each post
-    // ----------------------------------------------
+    // -------------------------------
+    // 7) Render each post
+    // -------------------------------
     const renderPost = ({ item }) => {
         let mediaUrl = null;
         if (item.media && item.media.length > 0) {
@@ -250,9 +257,7 @@ export default function SearchProfileScreen({ userId, onBack }) {
         const isVideo = mediaUrl && videoExtensions.some((ext) =>
             mediaUrl.toLowerCase().endsWith(ext)
         );
-
         const fallbackName = getFallbackName(item.user);
-
         return (
             <View style={styles.postCard} key={item._id}>
                 <LinearGradient colors={["#fdfdfd", "#f2f2f2"]} style={styles.postGradient}>
@@ -286,9 +291,9 @@ export default function SearchProfileScreen({ userId, onBack }) {
                     {/* Post Content */}
                     <Text style={styles.postContent}>{item.content}</Text>
 
-                    {/* Media (image or video) */}
-                    {mediaUrl && (
-                        isVideo ? (
+                    {/* Post Media */}
+                    {mediaUrl &&
+                        (isVideo ? (
                             <Video
                                 source={{ uri: mediaUrl }}
                                 style={styles.media}
@@ -303,8 +308,8 @@ export default function SearchProfileScreen({ userId, onBack }) {
                                 resizeMode="cover"
                                 onError={(e) => console.log("Image load error:", e.nativeEvent)}
                             />
-                        )
-                    )}
+                        ))
+                    }
 
                     {/* Post Stats */}
                     <View style={styles.postStats}>
@@ -364,9 +369,9 @@ export default function SearchProfileScreen({ userId, onBack }) {
         );
     };
 
-    // ----------------------------------------------
-    // If loading, show spinner
-    // ----------------------------------------------
+    // -------------------------------
+    // Loading state spinner
+    // -------------------------------
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
@@ -375,26 +380,38 @@ export default function SearchProfileScreen({ userId, onBack }) {
         );
     }
 
-    // ----------------------------------------------
-    // 7) Main Render
-    // ----------------------------------------------
+    // -------------------------------
+    // Main Render
+    // -------------------------------
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="#4A00E0" translucent />
 
             <FlatList
                 data={posts}
-                keyExtractor={(item) => (item._id ? item._id.toString() : Math.random().toString())}
+                keyExtractor={(item) =>
+                    item._id ? item._id.toString() : Math.random().toString()
+                }
                 renderItem={renderPost}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
                 ListHeaderComponent={
-                    <LinearGradient colors={["#4A00E0", "#8E2DE2"]} style={styles.headerGradient}>
+                    <LinearGradient
+                        colors={["#4A00E0", "#8E2DE2"]}
+                        style={styles.headerGradient}
+                    >
                         <View style={styles.profileHeader}>
                             <View style={styles.profileMain}>
                                 <View style={styles.profileInfo}>
-                                    <Text style={styles.name}>{profile?.username || "User"}</Text>
+                                    <Text style={styles.name}>
+                                        {profile?.username || "User"}
+                                    </Text>
                                 </View>
-                                <Image source={{ uri: profilePictureUrl }} style={styles.profileImage} />
+                                <Image
+                                    source={{ uri: profilePictureUrl }}
+                                    style={styles.profileImage}
+                                />
                             </View>
 
                             <Text style={styles.bio}>
@@ -413,24 +430,31 @@ export default function SearchProfileScreen({ userId, onBack }) {
                                 </View>
                             )}
 
-                            {/* Display correct follower/following/post counts */}
+                            {/* Profile Statistics */}
                             <View style={styles.statsContainer}>
                                 <View style={styles.statItem}>
-                                    <Text style={styles.profileStatNumber}>{getFollowersCount()}</Text>
+                                    <Text style={styles.profileStatNumber}>
+                                        {getFollowersCount()}
+                                    </Text>
                                     <Text style={styles.statLabel}>followers</Text>
                                 </View>
                                 <View style={styles.statDivider} />
                                 <View style={styles.statItem}>
-                                    <Text style={styles.profileStatNumber}>{getFollowingCount()}</Text>
+                                    <Text style={styles.profileStatNumber}>
+                                        {getFollowingCount()}
+                                    </Text>
                                     <Text style={styles.statLabel}>following</Text>
                                 </View>
                                 <View style={styles.statDivider} />
                                 <View style={styles.statItem}>
-                                    <Text style={styles.profileStatNumber}>{getPostsCount()}</Text>
+                                    <Text style={styles.profileStatNumber}>
+                                        {getPostsCount()}
+                                    </Text>
                                     <Text style={styles.statLabel}>Posts</Text>
                                 </View>
                             </View>
 
+                            {/* Action Buttons */}
                             <View style={styles.actionButtons}>
                                 {isFollowing ? (
                                     <TouchableOpacity
@@ -473,26 +497,19 @@ export default function SearchProfileScreen({ userId, onBack }) {
     );
 }
 
-// ----------------------------------
-// ADD THIS FUNCTION FOR "CONNECT"
-// ----------------------------------
+// -------------------------------
+// Additional function for "CONNECT"
+// -------------------------------
 export async function handleConnectProfile(userId, authToken, callback) {
     try {
         console.log("handleConnectProfile triggered for userId:", userId);
-        // Example: If you want to "connect" them on the backend:
-        // const response = await apiClient.put(API.profile.connect(userId), {}, {
-        //   headers: { Authorization: `Bearer ${authToken}` }
-        // });
-        // Optionally call callback() if you want to refresh the profile, etc.
+        // Example logic to connect profile, then execute callback if provided.
         if (callback) callback();
     } catch (error) {
         console.error("Error connecting to profile:", error?.response?.data || error.message);
     }
 }
 
-// ----------------------------------
-// Styles
-// ----------------------------------
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#fff" },
     loadingContainer: {
@@ -534,8 +551,18 @@ const styles = StyleSheet.create({
         borderWidth: 3,
         borderColor: "#fff",
     },
-    name: { fontSize: 24, fontWeight: "bold", color: "#fff", marginBottom: 4 },
-    bio: { fontSize: 16, color: "#fff", marginBottom: 20, lineHeight: 22 },
+    name: {
+        fontSize: 24,
+        fontWeight: "bold",
+        color: "#fff",
+        marginBottom: 4,
+    },
+    bio: {
+        fontSize: 16,
+        color: "#fff",
+        marginBottom: 20,
+        lineHeight: 22,
+    },
     interestsContainer: { marginBottom: 20 },
     interestTags: {
         flexDirection: "row",
@@ -551,7 +578,11 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: "rgba(255, 255, 255, 0.3)",
     },
-    interestText: { color: "#fff", fontSize: 14, fontWeight: "500" },
+    interestText: {
+        color: "#fff",
+        fontSize: 14,
+        fontWeight: "500",
+    },
     statsContainer: {
         flexDirection: "row",
         backgroundColor: "rgba(255, 255, 255, 0.15)",
@@ -561,9 +592,21 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     statItem: { alignItems: "center", flex: 1 },
-    statDivider: { width: 1, height: "100%", backgroundColor: "rgba(255, 255, 255, 0.3)" },
-    profileStatNumber: { fontSize: 20, fontWeight: "bold", color: "#fff" },
-    statLabel: { color: "rgba(255, 255, 255, 0.8)", fontSize: 14, marginTop: 4 },
+    statDivider: {
+        width: 1,
+        height: "100%",
+        backgroundColor: "rgba(255, 255, 255, 0.3)",
+    },
+    profileStatNumber: {
+        fontSize: 20,
+        fontWeight: "bold",
+        color: "#fff",
+    },
+    statLabel: {
+        color: "rgba(255, 255, 255, 0.8)",
+        fontSize: 14,
+        marginTop: 4,
+    },
     actionButtons: { flexDirection: "row", gap: 10 },
     followButton: {
         flex: 1,
@@ -572,7 +615,11 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         alignItems: "center",
     },
-    followButtonText: { color: "#4A00E0", fontWeight: "600", fontSize: 16 },
+    followButtonText: {
+        color: "#4A00E0",
+        fontWeight: "600",
+        fontSize: 16,
+    },
     unfollowButton: {
         flex: 1,
         backgroundColor: "transparent",
@@ -593,8 +640,6 @@ const styles = StyleSheet.create({
     messageButtonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
     noPosts: { padding: 40, alignItems: "center" },
     noPostsText: { fontSize: 16, color: "#666" },
-
-    // Post card styles
     postCard: { margin: 10, borderRadius: 10, overflow: "hidden" },
     postGradient: { padding: 15, borderRadius: 10 },
     postHeader: {

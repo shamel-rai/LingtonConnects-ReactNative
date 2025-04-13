@@ -1,4 +1,3 @@
-// SearchPage.js
 import React, { useState } from "react";
 import {
   View,
@@ -20,12 +19,27 @@ import apiClient from "../../utils/axiosSetup";
 // Import the profile detail component
 import SearchProfileScreen from "./SearchProfileScreen";
 
+const ASSET_BASEURL = `http://192.168.101.6:3001`;
+// const ASSET_BASEURL = "http://100.64.243.138:3001";
+
 const SearchPage = () => {
   // State for managing the selected user ID.
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [users, setUsers] = useState([]);
+
+  // Helper function to get the proper avatar URL.
+  const getUserAvatarUrl = (item) => {
+    // If item.profilePicture exists use that; check if URL is absolute.
+    if (item.profilePicture) {
+      return item.profilePicture.startsWith("http")
+        ? item.profilePicture
+        : `${ASSET_BASEURL}${item.profilePicture.startsWith("/") ? "" : "/"}${item.profilePicture}`;
+    }
+    // Otherwise, fall back to the avatar property.
+    return item.avatar;
+  };
 
   const handleSearch = async (text) => {
     setSearchQuery(text);
@@ -38,7 +52,7 @@ const SearchPage = () => {
     }
     try {
       const response = await apiClient.get(API.Search.users(text));
-      const data = await response.data;
+      const data = response.data;
       console.log(data);
       setUsers(data);
     } catch (error) {
@@ -66,7 +80,10 @@ const SearchPage = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient colors={["#4A00E0", "#8E2DE2"]} style={styles.header}>
+      <LinearGradient
+        colors={["#4A00E0", "#8E2DE2"]}
+        style={styles.header}
+      >
         <Text style={styles.headerTitle}>Search Users</Text>
       </LinearGradient>
 
@@ -101,7 +118,10 @@ const SearchPage = () => {
               style={styles.userCard}
               onPress={() => handleUserPress(item.id || item._id)}
             >
-              <Image source={{ uri: item.avatar }} style={styles.avatar} />
+              <Image
+                source={{ uri: getUserAvatarUrl(item) }}
+                style={styles.avatar}
+              />
               <View style={styles.userInfo}>
                 <View style={styles.nameContainer}>
                   <Text style={styles.userName}>{item.name}</Text>
@@ -128,7 +148,8 @@ const SearchPage = () => {
             </TouchableOpacity>
           )}
           keyExtractor={(item) =>
-            (item._id?.toString() || item.id?.toString()) || Math.random().toString()
+            (item._id?.toString() || item.id?.toString()) ||
+            Math.random().toString()
           }
           contentContainerStyle={styles.userList}
           showsVerticalScrollIndicator={false}

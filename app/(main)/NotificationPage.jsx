@@ -1,3 +1,4 @@
+// screens/NotificationPage.js
 import React, { useState, useEffect, useContext, useRef } from "react";
 import {
   View,
@@ -27,26 +28,35 @@ const THEME = {
   textSecondary: "#666666",
 };
 
-// Base URL for your server (adjust if needed)
 const BASE_URL = "http://192.168.101.6:3001";
 
-const getNotificationIcon = (type) => {
+const getNotificationIcon = (type, isAlreadyFollowing) => {
   switch (type) {
-    case "like": return "heart";
-    case "comment": return "message-circle";
-    case "follow": return "user-plus";
-    case "share": return "share-2";
-    default: return "bell";
+    case "like":
+      return "heart";
+    case "comment":
+      return "message-circle";
+    case "follow":
+      return isAlreadyFollowing ? "check" : "user-plus";
+    case "share":
+      return "share-2";
+    default:
+      return "bell";
   }
 };
 
 const getActionText = (type) => {
   switch (type) {
-    case "like": return "liked your post";
-    case "comment": return "commented on your post";
-    case "follow": return "started following you";
-    case "share": return "shared your post";
-    default: return "sent you a notification";
+    case "like":
+      return "liked your post";
+    case "comment":
+      return "commented on your post";
+    case "follow":
+      return "started following you";
+    case "share":
+      return "shared your post";
+    default:
+      return "sent you a notification";
   }
 };
 
@@ -66,7 +76,8 @@ const NotificationPage = () => {
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const { userId } = useContext(AuthContext);
+  // Destructure following and updateFollowing from context
+  const { userId, following, updateFollowing } = useContext(AuthContext);
   const socketRef = useRef(null);
 
   useEffect(() => {
@@ -76,20 +87,16 @@ const NotificationPage = () => {
       return;
     }
 
-    console.log("Connecting to Socket.IO with userId:", userId);
     socketRef.current = io("http://192.168.101.6:3001", {
       query: { userId },
       transports: ["websocket"],
     });
 
     socketRef.current.on("connect", () => {
-      console.log("Socket connected:", socketRef.current.id);
       socketRef.current.emit("joinNotifications", userId);
-      console.log("Joined notifications room:", userId);
     });
 
     socketRef.current.on("newNotification", (newNotification) => {
-      console.log("Received newNotification:", newNotification);
       setNotifications((prev) => [newNotification, ...prev]);
     });
 
@@ -122,7 +129,6 @@ const NotificationPage = () => {
     try {
       const response = await apiClient.get(API.notifications.getAll(userId));
       if (response.data.success) {
-        console.log("Fetched notifications:", response.data.notifications);
         setNotifications(response.data.notifications);
       } else {
         console.error("Error fetching notifications:", response.data.message);
@@ -158,32 +164,67 @@ const NotificationPage = () => {
   const markAllAsRead = async () => {
     try {
       await apiClient.patch(API.notifications.markAllAsRead(userId));
-      setNotifications((prev) => prev.map((notif) => ({ ...notif, read: true })));
+      setNotifications((prev) =>
+        prev.map((notif) => ({ ...notif, read: true }))
+      );
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
     }
   };
 
-  // This is where we handle the "relative path" from your DB
+  // Follow back functionality
+  const followBack = async (sender, notificationId) => {
+    try {
+      // If the sender is an object, get its _id; otherwise use the string
+      const senderId =
+        typeof sender === "object" ? String(sender._id) : String(sender);
+      console.log("Attempting followBack with:", { userId, senderId });
+      console.log("FollowBack endpoint:", API.follow.followBack(userId, senderId));
+      const response = await apiClient.post(API.follow.followBack(userId, senderId));
+
+      if (response.data.success) {
+        // Instead of ephemeral isFollowedBack, we do:
+        updateFollowing(senderId);
+
+        // Also optionally mark this notification so the UI won't show the button
+        setNotifications((prev) =>
+          prev.map((notif) =>
+            notif._id === notificationId
+              ? { ...notif, read: true } // or keep read: false if you prefer
+              : notif
+          )
+        );
+      } else {
+        console.error("Follow back failed:", response.data.message);
+      }
+    } catch (error) {
+      console.error("Error following back:", error);
+    }
+  };
+
   const getFullImageUrl = (profilePicture) => {
-    if (!profilePicture) {
-      return "https://via.placeholder.com/50"; // fallback
-    }
-    // If it's already absolute (starts with http), use it directly
-    if (profilePicture.startsWith("http")) {
-      return profilePicture;
-    }
-    // Otherwise, prepend the base server URL
-    return BASE_URL + profilePicture;
+    if (!profilePicture) return "https://via.placeholder.com/50";
+    return profilePicture.startsWith("http")
+      ? profilePicture
+      : BASE_URL + profilePicture;
   };
 
   const renderNotification = ({ item }) => {
     const sender = item.senderId;
     const senderName = sender?.username || "Someone";
-
-    // The DB might store the path as "/uploads/..." => Prepend your base server URL
+    const senderId = sender?._id || sender; // might be a string or an object
     const senderPic = getFullImageUrl(sender?.profilePicture);
     const actionText = getActionText(item.type);
+
+    // Determine if already following the sender
+    const isAlreadyFollowing = following.includes(senderId);
+
+    // Determine icon name or color changes
+    const iconName = getNotificationIcon(item.type, isAlreadyFollowing);
+    const iconColors =
+      item.type === "follow" && isAlreadyFollowing
+        ? ["#7A88FF", "#7A88FF"]
+        : THEME.primary;
 
     return (
       <TouchableOpacity
@@ -191,10 +232,7 @@ const NotificationPage = () => {
         onPress={() => markAsRead(item._id)}
       >
         <View style={styles.notificationContent}>
-          <Image
-            source={{ uri: senderPic }}
-            style={styles.avatar}
-          />
+          <Image source={{ uri: senderPic }} style={styles.avatar} />
           <View style={styles.textContainer}>
             <View style={styles.headerContainer}>
               <Text style={styles.notificationLine}>
@@ -204,14 +242,41 @@ const NotificationPage = () => {
                 {formatTimestamp(item.createdAt)}
               </Text>
             </View>
+
+            {item.type === "follow" && (
+              <View style={styles.followActionContainer}>
+                {isAlreadyFollowing ? (
+                  <View style={styles.followedStatus}>
+                    <Text style={styles.followedText}>Following</Text>
+                  </View>
+                ) : (
+                  <LinearGradient
+                    colors={THEME.secondary}
+                    style={styles.followBackButton}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        followBack(item.senderId, item._id);
+                      }}
+                      style={styles.followBackButtonTouchable}
+                    >
+                      <Text style={styles.followBackButtonText}>Follow Back</Text>
+                    </TouchableOpacity>
+                  </LinearGradient>
+                )}
+              </View>
+            )}
           </View>
           <LinearGradient
-            colors={THEME.primary}
+            colors={iconColors}
             style={styles.iconContainer}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Icon name={getNotificationIcon(item.type)} size={16} color="#FFF" />
+            <Icon name={iconName} size={16} color="#FFF" />
           </LinearGradient>
         </View>
       </TouchableOpacity>
@@ -227,7 +292,10 @@ const NotificationPage = () => {
     >
       <Text style={styles.headerTitle}>Notifications</Text>
       {unreadCount > 0 && (
-        <TouchableOpacity style={styles.markAllButton} onPress={markAllAsRead}>
+        <TouchableOpacity
+          style={styles.markAllButton}
+          onPress={markAllAsRead}
+        >
           <Text style={styles.markAllText}>Mark all as read</Text>
         </TouchableOpacity>
       )}
@@ -258,9 +326,7 @@ const NotificationPage = () => {
         }
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>No notifications yet</Text>
-        }
+        ListEmptyComponent={<Text style={styles.emptyText}>No notifications yet</Text>}
       />
     </View>
   );
@@ -268,7 +334,6 @@ const NotificationPage = () => {
 
 export default NotificationPage;
 
-// Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -328,7 +393,7 @@ const styles = StyleSheet.create({
   },
   notificationContent: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   avatar: {
     width: 40,
@@ -364,6 +429,36 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
+  },
+  followActionContainer: {
+    marginTop: 8,
+    flexDirection: "row",
+  },
+  followBackButton: {
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  followBackButtonTouchable: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  followBackButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  followedStatus: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: "rgba(122, 136, 255, 0.1)",
+  },
+  followedText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: THEME.secondary[0],
   },
   emptyText: {
     textAlign: "center",

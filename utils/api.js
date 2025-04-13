@@ -22,6 +22,8 @@ const API = {
     getComments: (postId) => `${BASE_URL}/posts/${postId}/comments`,
     updateComment: (postId, commentId) => `${BASE_URL}/posts/${postId}/comments/${commentId}`,
     deleteComment: (postId, commentId) => `${BASE_URL}/posts/${postId}/comments/${commentId}`,
+    // Add this deletePost property:
+    deletePost: (postId) => `${BASE_URL}/posts/${postId}`,
   },
   authentication: {
     login: () => `${BASE_URL}/login`,
@@ -39,9 +41,9 @@ const API = {
   messages: {
     conversation: (conversationId) => `${BASE_URL}/messages?conversationId=${conversationId}`,
     send: () => `${BASE_URL}/messages`,
+    unread: (userId) => `${BASE_URL}/messages/unread?userId=${userId}`,
   },
   conversations: {
-    // Now expecting a userId parameter.
     getAll: (userId) => `${BASE_URL}/conversations?userId=${userId}`,
     getOrCreate: `${BASE_URL}/conversations/getOrCreate`,
   },
@@ -53,11 +55,14 @@ const API = {
   },
   notifications: {
     getAll: (userId) => `${BASE_URL}/notifications/${userId}`,
-    // You can add additional endpoints, e.g.:
     markAsRead: (notificationId) => `${BASE_URL}/notifications/${notificationId}/read`,
     markAllAsRead: (userId) => `${BASE_URL}/notifications/${userId}/read-all`,
-  }
+  },
+  follow: {
+    followBack: (userId, senderId) =>
+      `${BASE_URL}/users/follow/${userId}/followback/${senderId}`,
 
+  }
 };
 
 module.exports = API;

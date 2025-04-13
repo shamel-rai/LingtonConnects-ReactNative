@@ -18,8 +18,21 @@ import apiClient from "../../utils/axiosSetup";
 import API from "../../utils/api";
 import { Feather } from "@expo/vector-icons";
 
+// Define your backend base URL for assets
+const ASSET_BASEURL = "http://192.168.101.6:3001";
+
+// Helper function to build the absolute URL for a user's profile picture,
+// as stored in the user model on the backend.
+const getUserProfilePicUrl = (user) => {
+  if (!user?.profilePicture) return "https://via.placeholder.com/50";
+  // If the profilePicture is already an absolute URL, return as is.
+  if (user.profilePicture.startsWith("http")) return user.profilePicture;
+  // Otherwise, prepend the asset base URL.
+  return `${ASSET_BASEURL}${user.profilePicture.startsWith("/") ? "" : "/"}${user.profilePicture}`;
+};
+
 const CommentsSection = () => {
-  const { authToken } = useContext(AuthContext);
+  const { authToken, userId } = useContext(AuthContext);
   const { postId } = useLocalSearchParams();
 
   // COMMENTS AND NEW COMMENT
@@ -58,7 +71,6 @@ const CommentsSection = () => {
         { content: newComment },
         { headers: { Authorization: `Bearer ${authToken}` } }
       );
-      // Assuming the backend returns the updated post
       setComments(response.data.post.comments);
       setNewComment("");
     } catch (error) {
@@ -79,7 +91,7 @@ const CommentsSection = () => {
     setEditingContent("");
   };
 
-  // Save the edited comment (connects to PUT /posts/:postId/comments/:commentId)
+  // Save the edited comment (PUT)
   const handleSaveEdit = async (commentId) => {
     try {
       const response = await apiClient.put(
@@ -87,7 +99,6 @@ const CommentsSection = () => {
         { content: editingContent },
         { headers: { Authorization: `Bearer ${authToken}` } }
       );
-      // Update the comments with the updated post's comments
       setComments(response.data.post.comments);
       setEditingCommentId(null);
       setEditingContent("");
@@ -97,14 +108,13 @@ const CommentsSection = () => {
     }
   };
 
-  // Delete a comment (connects to DELETE /posts/:postId/comments/:commentId)
+  // Delete a comment (DELETE)
   const handleDeleteComment = async (commentId) => {
     try {
       const response = await apiClient.delete(
         API.posts.deleteComment(postId, commentId),
         { headers: { Authorization: `Bearer ${authToken}` } }
       );
-      // Update comments with the new comments array from the backend
       setComments(response.data.post.comments);
       setMenuVisibleCommentId(null);
     } catch (error) {
@@ -126,33 +136,55 @@ const CommentsSection = () => {
             comments.map((comment) => {
               const isMenuVisible = menuVisibleCommentId === comment._id;
               const isEditing = editingCommentId === comment._id;
+              // Only show the edit/delete options if the logged-in user is the comment owner.
+              const canEditOrDelete = comment.user?._id === userId;
+
               return (
                 <View key={comment._id} style={styles.comment}>
                   <View style={styles.commentHeader}>
+                    {/* Use the same helper function to load profile pictures as in your ProfilePage */}
                     <Image
-                      source={{ uri: comment.user?.profilePicture || "https://via.placeholder.com/50" }}
+                      source={{ uri: getUserProfilePicUrl(comment.user) }}
                       style={styles.avatar}
                     />
                     <View style={styles.userInfo}>
-                      <Text style={styles.displayName}>{comment.user?.displayName || "Unknown"}</Text>
-                      <Text style={styles.username}>@{comment.user?.username || "unknown"}</Text>
+                      <Text style={styles.displayName}>
+                        {comment.user?.displayName || "Unknown"}
+                      </Text>
+                      <Text style={styles.username}>
+                        @{comment.user?.username || "unknown"}
+                      </Text>
                     </View>
-                    <View style={styles.moreButtonContainer}>
-                      <TouchableOpacity onPress={() => setMenuVisibleCommentId(isMenuVisible ? null : comment._id)}>
-                        <Feather name="more-horizontal" size={22} color="#666" />
-                      </TouchableOpacity>
-                      {isMenuVisible && (
-                        <View style={styles.menuContainer}>
-                          <TouchableOpacity style={styles.menuOption} onPress={() => handleStartEdit(comment._id, comment.content)}>
-                            <Text style={styles.menuOptionText}>Edit</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={styles.menuOption} onPress={() => handleDeleteComment(comment._id)}>
-                            <Text style={[styles.menuOptionText, styles.deleteText]}>Delete</Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                    </View>
+
+                    {canEditOrDelete && (
+                      <View style={styles.moreButtonContainer}>
+                        <TouchableOpacity
+                          onPress={() => setMenuVisibleCommentId(isMenuVisible ? null : comment._id)}
+                        >
+                          <Feather name="more-horizontal" size={22} color="#666" />
+                        </TouchableOpacity>
+                        {isMenuVisible && (
+                          <View style={styles.menuContainer}>
+                            <TouchableOpacity
+                              style={styles.menuOption}
+                              onPress={() => handleStartEdit(comment._id, comment.content)}
+                            >
+                              <Text style={styles.menuOptionText}>Edit</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.menuOption}
+                              onPress={() => handleDeleteComment(comment._id)}
+                            >
+                              <Text style={[styles.menuOptionText, styles.deleteText]}>
+                                Delete
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+                    )}
                   </View>
+
                   {isEditing ? (
                     <View style={styles.editContainer}>
                       <TextInput
@@ -162,10 +194,16 @@ const CommentsSection = () => {
                         multiline
                       />
                       <View style={styles.editButtonRow}>
-                        <TouchableOpacity style={styles.saveButton} onPress={() => handleSaveEdit(comment._id)}>
+                        <TouchableOpacity
+                          style={styles.saveButton}
+                          onPress={() => handleSaveEdit(comment._id)}
+                        >
                           <Text style={styles.saveButtonText}>Save</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.cancelButton} onPress={handleCancelEdit}>
+                        <TouchableOpacity
+                          style={styles.cancelButton}
+                          onPress={handleCancelEdit}
+                        >
                           <Text style={styles.cancelButtonText}>Cancel</Text>
                         </TouchableOpacity>
                       </View>
@@ -173,9 +211,13 @@ const CommentsSection = () => {
                   ) : (
                     <>
                       <Text style={styles.commentText}>
-                        {typeof comment.content === "string" ? comment.content : JSON.stringify(comment.content)}
+                        {typeof comment.content === "string"
+                          ? comment.content
+                          : JSON.stringify(comment.content)}
                       </Text>
-                      <Text style={styles.timeText}>{new Date(comment.time).toLocaleString()}</Text>
+                      <Text style={styles.timeText}>
+                        {new Date(comment.time).toLocaleString()}
+                      </Text>
                     </>
                   )}
                 </View>
@@ -183,6 +225,7 @@ const CommentsSection = () => {
             })
           )}
         </ScrollView>
+
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
@@ -251,12 +294,43 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   editButtonRow: { flexDirection: "row", justifyContent: "flex-end" },
-  saveButton: { backgroundColor: "#4A00E0", paddingVertical: 8, paddingHorizontal: 16, borderRadius: 4, marginRight: 8 },
+  saveButton: {
+    backgroundColor: "#4A00E0",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 4,
+    marginRight: 8,
+  },
   saveButtonText: { color: "#fff", fontWeight: "600" },
-  cancelButton: { backgroundColor: "#999", paddingVertical: 8, paddingHorizontal: 16, borderRadius: 4 },
+  cancelButton: {
+    backgroundColor: "#999",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 4,
+  },
   cancelButtonText: { color: "#fff", fontWeight: "600" },
-  inputContainer: { flexDirection: "row", padding: 16, borderTopWidth: 1, borderTopColor: "#ccc", alignItems: "center", backgroundColor: "#fff" },
-  input: { flex: 1, borderWidth: 1, borderColor: "#ccc", borderRadius: 8, padding: 8, marginRight: 8, fontSize: 15 },
-  postButton: { backgroundColor: "#4A00E0", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
+  inputContainer: {
+    flexDirection: "row",
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#ccc",
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  input: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    padding: 8,
+    marginRight: 8,
+    fontSize: 15,
+  },
+  postButton: {
+    backgroundColor: "#4A00E0",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
   postButtonText: { color: "#fff", fontWeight: "600" },
 });
