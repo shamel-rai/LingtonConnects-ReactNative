@@ -22,7 +22,6 @@ const API = {
     getComments: (postId) => `${BASE_URL}/posts/${postId}/comments`,
     updateComment: (postId, commentId) => `${BASE_URL}/posts/${postId}/comments/${commentId}`,
     deleteComment: (postId, commentId) => `${BASE_URL}/posts/${postId}/comments/${commentId}`,
-    // Add this deletePost property:
     deletePost: (postId) => `${BASE_URL}/posts/${postId}`,
   },
   authentication: {
@@ -61,7 +60,10 @@ const API = {
   follow: {
     followBack: (userId, senderId) =>
       `${BASE_URL}/users/follow/${userId}/followback/${senderId}`,
-
+  },
+  khalti: {
+    initiate: () => `${BASE_URL}/initiate`,
+    return: () => `${BASE_URL}/khalti-return`,
   }
 };
 

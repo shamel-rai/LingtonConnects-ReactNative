@@ -1,4 +1,5 @@
-import { Stack } from "expo-router";
+// app/_layout.jsx
+import { Stack, Slot } from "expo-router";
 import { AuthProvider } from "../Context/AuthContext";
 import { useContext } from "react";
 import { AuthContext } from "../Context/AuthContext";
@@ -26,25 +27,14 @@ function AppContent() {
   return (
     <Stack
       screenOptions={{
-        headerShown: false, // Disable all headers globally
+        headerShown: false,
         headerStyle: { backgroundColor: "#4A00E0" },
         headerTintColor: "white",
         headerTitleStyle: { fontWeight: "bold" },
       }}
     >
-      {!isAuthenticated ? (
-        <>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="login" />
-          <Stack.Screen name="signup" />
-        </>
-      ) : (
-        <>
-          <Stack.Screen name="(main)/HomePage" />
-          <Stack.Screen name="(main)/ProfilePage" />
-          <Stack.Screen name="(main)/EditPage" />
-        </>
-      )}
+      {/* The Slot renders nested route screens based on your file system */}
+      <Slot />
     </Stack>
   );
 }

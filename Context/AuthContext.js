@@ -120,6 +120,7 @@
 
 
 // Context/AuthProvider.js
+// Context/AuthContext.js
 import React, { createContext, useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
@@ -130,13 +131,14 @@ import API from "../utils/api";
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
+  // We still get the router, but we no longer call router.replace in logout.
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authToken, setAuthToken] = useState(null);
   const [userId, setUserId] = useState(null);
   const [username, setUsername] = useState(null);
   const [avatar, setAvatar] = useState(null);
-  const [following, setFollowing] = useState([]); // NEW: track who the current user follows
+  const [following, setFollowing] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -164,7 +166,7 @@ export const AuthProvider = ({ children }) => {
           // Set token in axios default headers
           apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
-          // Fetch the user profile to get the 'following' array
+          // Optionally fetch the user profile to get following info
           await fetchCurrentUserFollowing(storedUserId);
         } else {
           await logout();
@@ -180,36 +182,25 @@ export const AuthProvider = ({ children }) => {
     checkAuthentication();
   }, []);
 
-  // Helper to fetch the user's profile and store 'following'
+  // Helper to fetch current user profile (following array)
   const fetchCurrentUserFollowing = async (uid) => {
     try {
       const response = await apiClient.get(API.profile.get(uid));
-      // Suppose your GET /users/:id returns something like { following: [...], ... }
       const data = response.data;
       console.log("Fetched user profile:", data);
 
-      // If your response data has a 'following' array:
-      if (data.followers !== undefined || data.following !== undefined) {
-        // We only store the list of IDs that the user is following
-        // e.g., data.following might be an array of user IDs
-        if (Array.isArray(data.followers)) {
-          // do something if needed
-        }
-        if (Array.isArray(data.following)) {
-          // The 'following' might be an array of user IDs or user objects
-          // If it's user objects, we can map to just IDs
-          const followingIds = data.following.map((f) =>
-            typeof f === "object" ? f._id : f
-          );
-          setFollowing(followingIds);
-        }
+      if (data.following && Array.isArray(data.following)) {
+        const followingIds = data.following.map((f) =>
+          typeof f === "object" ? f._id : f
+        );
+        setFollowing(followingIds);
       }
     } catch (err) {
       console.error("Error fetching current user profile:", err.message);
     }
   };
 
-  // Called after a successful login
+  // Login function (called after successful login)
   const login = async (token, userId, username, avatarUrl) => {
     try {
       setAuthToken(token);
@@ -226,13 +217,14 @@ export const AuthProvider = ({ children }) => {
       }
 
       apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      // also fetch the user’s following data
+      // Optionally fetch following info
       await fetchCurrentUserFollowing(userId);
     } catch (error) {
       console.error("Error storing auth data:", error);
     }
   };
 
+  // Logout simply clears auth data and updates state.
   const logout = async () => {
     try {
       await SecureStore.deleteItemAsync("authToken");
@@ -247,13 +239,13 @@ export const AuthProvider = ({ children }) => {
     setUserId(null);
     setUsername(null);
     setAvatar(null);
-    setFollowing([]); // Clear following
+    setFollowing([]);
     setLoading(false);
     delete apiClient.defaults.headers.common["Authorization"];
-    router.replace("/WelcomePage");
+    // DO NOT call router.replace here.
   };
 
-  // Helper to update following array after a follow or follow-back
+  // Optionally, a helper to update following list.
   const updateFollowing = (newFollowedUserId) => {
     setFollowing((prev) => {
       if (!prev.includes(newFollowedUserId)) {
@@ -279,8 +271,8 @@ export const AuthProvider = ({ children }) => {
         userId,
         username,
         avatar,
-        following,          // Expose the following array
-        updateFollowing,    // Expose helper function
+        following,
+        updateFollowing,
         login,
         logout,
         loading,

@@ -1,48 +1,20 @@
-// import React, { useContext } from "react";
-// import { AuthProvider, AuthContext } from "../Context/AuthContext";
-// import Welcome from "./WelcomePage";
-// import Homepage from "./(main)/HomePage";
-// import { ActivityIndicator } from "react-native";
-
-// const AppContent = () => {
-//   const { isAuthenticated, loading } = useContext(AuthContext);
-
-//   if (loading) {
-//     return <ActivityIndicator size="large" color="#0000ff" />;
-//   }
-
-//   return isAuthenticated ? <Homepage /> : <Welcome />;
-// };
-
-// export default function index() {
-//   return (
-//     <AuthProvider>
-//       <AppContent />
-//     </AuthProvider>
-//   );
-// }
-
-
+// app/index.jsx
 import React, { useContext } from "react";
-import { ActivityIndicator } from "react-native";
-import { AuthProvider, AuthContext } from "../Context/AuthContext";
+import { AuthContext } from "../Context/AuthContext";
 import Welcome from "./WelcomePage";
 import Homepage from "./(main)/HomePage";
+import { ActivityIndicator, View } from "react-native";
 
-const AppContent = () => {
+export default function Index() {
   const { isAuthenticated, loading } = useContext(AuthContext);
 
   if (loading) {
-    return <ActivityIndicator size="large" color="#0000ff" />;
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    );
   }
 
   return isAuthenticated ? <Homepage /> : <Welcome />;
-};
-
-export default function Index() {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  );
 }

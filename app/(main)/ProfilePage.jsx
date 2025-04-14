@@ -15,12 +15,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Link, useRouter } from "expo-router";
 import { Video } from "expo-av";
 import { Feather, MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import * as WebBrowser from "expo-web-browser"; // Import WebBrowser for in-app browsing
 import { AuthContext } from "../../Context/AuthContext";
 import API from "../../utils/api";
 import apiClient from "../../utils/axiosSetup";
 
+// Base URL for your media assets
 const ASSET_BASEURL = `http://192.168.101.6:3001`;
-// const ASSET_BASEURL = "http://100.64.243.138:3001";
 
 export default function ProfilePage() {
   const { userId, authToken, profilePicture } = useContext(AuthContext);
@@ -40,7 +41,9 @@ export default function ProfilePage() {
   const actualUserId =
     typeof userId === "object" && userId._id ? userId._id : userId;
 
-  // 1) Fetch Profile
+  // -------------------------------
+  // Fetch Profile
+  // -------------------------------
   const fetchProfile = async () => {
     if (!actualUserId) return;
     try {
@@ -53,30 +56,40 @@ export default function ProfilePage() {
       setProfile(userData);
       console.log("Fetched profile:", userData);
     } catch (error) {
-      console.error("Error fetching profile:", error.response?.data || error.message);
+      console.error(
+        "Error fetching profile:",
+        error.response?.data || error.message
+      );
     }
   };
 
-  // 2) Fetch the user’s posts
+  // -------------------------------
+  // Fetch the user's posts
+  // -------------------------------
   const fetchUserPosts = async () => {
     if (!actualUserId) return;
     try {
       const response = await apiClient.get(API.posts.getUserPost(actualUserId), {
         headers: { Authorization: `Bearer ${authToken}` },
       });
-      // If the backend returns { posts: [...] }, handle that:
+      // If backend returns { posts: [...] }, handle that:
       const postsData = Array.isArray(response.data.posts)
         ? response.data.posts
         : response.data;
       setPosts(postsData || []);
       console.log("Fetched posts:", postsData);
     } catch (error) {
-      console.error("Error fetching posts:", error.response?.data || error.message);
+      console.error(
+        "Error fetching posts:",
+        error.response?.data || error.message
+      );
       setPosts([]);
     }
   };
 
-  // useEffect to load data and guarantee loading is set to false
+  // -------------------------------
+  // useEffect to load data on mount
+  // -------------------------------
   useEffect(() => {
     const fetchData = async () => {
       if (!actualUserId) {
@@ -96,7 +109,9 @@ export default function ProfilePage() {
     fetchData();
   }, [actualUserId]);
 
+  // -------------------------------
   // Pull-to-refresh
+  // -------------------------------
   const onRefresh = async () => {
     setRefreshing(true);
     await Promise.all([fetchProfile(), fetchUserPosts()]);
@@ -133,21 +148,27 @@ export default function ProfilePage() {
 
   const getPostsCount = () => posts.length;
 
-  // 3) Helper: Build the profile picture URL
+  // -------------------------------
+  // Build the profile picture URL
+  // -------------------------------
   const profilePictureUrl = profile?.profilePicture
     ? profile.profilePicture.startsWith("http")
       ? profile.profilePicture
       : `${ASSET_BASEURL}${profile.profilePicture}`
     : profilePicture || "https://via.placeholder.com/150";
 
-  // 4) Toggle Save Post
+  // -------------------------------
+  // Toggle Save Post
+  // -------------------------------
   const toggleSavePost = (postId) => {
     setSavedPosts((prev) =>
       prev.includes(postId) ? prev.filter((id) => id !== postId) : [...prev, postId]
     );
   };
 
-  // 5) Toggle Like
+  // -------------------------------
+  // Toggle Like
+  // -------------------------------
   const toggleLike = async (postId) => {
     try {
       await apiClient.post(
@@ -171,12 +192,55 @@ export default function ProfilePage() {
     }
   };
 
-  // 6) Render each post with delete option (only for posts owned by current user)
+  // -------------------------------
+  // Handle Khalti Payment Initiation
+  // -------------------------------
+  const handleKhaltiPress = async () => {
+    try {
+      // Construct the payload to send to your backend.
+      const payload = {
+        userId: actualUserId,         // Unique user identifier
+        amount: "10000",              // Payment amount in paisa (e.g., NPR 100 -> "10000")
+        purchaseOrderName: "Profile Payment",
+        customerName: profile?.displayName || "Guest",
+        customerEmail: "test@khalti.com", // Use profile?.email if available
+        customerPhone: "9800000001",      // Use profile?.phone if available
+      };
+
+      // Send a POST request to your Khalti initiation endpoint.
+      const response = await apiClient.post(API.khalti.initiate(), payload, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+
+      console.log("Khalti Payment Initiation response:", response.data);
+
+      // Extract payment_url from the response.
+      const { payment_url } = response.data;
+
+      if (payment_url) {
+        // Open the payment URL using Expo's in-app browser.
+        const result = await WebBrowser.openBrowserAsync(payment_url);
+        console.log("Browser result:", result);
+      } else {
+        console.error("No payment URL returned from Khalti");
+      }
+    } catch (error) {
+      console.error(
+        "Error initiating Khalti payment:",
+        error.response?.data || error.message
+      );
+    }
+  };
+
+  // -------------------------------
+  // Helper for user profile picture in a post
+  // -------------------------------
   const getUserProfilePicUrl = (user) => {
     if (!user?.profilePicture) return "https://via.placeholder.com/100";
     return user.profilePicture.startsWith("http")
       ? user.profilePicture
-      : `${ASSET_BASEURL}${user.profilePicture.startsWith("/") ? "" : "/"}${user.profilePicture}`;
+      : `${ASSET_BASEURL}${user.profilePicture.startsWith("/") ? "" : "/"
+      }${user.profilePicture}`;
   };
 
   const getFallbackName = (user) => {
@@ -186,6 +250,9 @@ export default function ProfilePage() {
     return user.username || "User";
   };
 
+  // -------------------------------
+  // Render Each Post
+  // -------------------------------
   const renderPost = ({ item }) => {
     const mediaUrl =
       item.media && item.media.length > 0
@@ -201,7 +268,10 @@ export default function ProfilePage() {
         <LinearGradient colors={["#fdfdfd", "#f2f2f2"]} style={styles.postGradient}>
           {/* Post Header */}
           <View style={styles.postHeader}>
-            <TouchableOpacity style={styles.userInfo} onPress={() => router.push("/ProfilePage")}>
+            <TouchableOpacity
+              style={styles.userInfo}
+              onPress={() => router.push("/ProfilePage")}
+            >
               <Image
                 source={{ uri: getUserProfilePicUrl(item.user) }}
                 style={styles.avatar}
@@ -221,7 +291,7 @@ export default function ProfilePage() {
                 <Text style={styles.userHandle}>@{item.user?.username}</Text>
               </View>
             </TouchableOpacity>
-            {/* More Button: Only show delete option if post belongs to current user */}
+            {/* More Button (show delete option if post belongs to the current user) */}
             <TouchableOpacity
               style={styles.moreButton}
               onPress={() => {
@@ -304,14 +374,15 @@ export default function ProfilePage() {
               />
             </TouchableOpacity>
           </View>
-
           {item.time && <Text style={styles.timeStamp}>{item.time}</Text>}
         </LinearGradient>
       </View>
     );
   };
 
-  // 7) Delete Post Handler
+  // -------------------------------
+  // Delete Post Handler
+  // -------------------------------
   const handleDeletePost = async () => {
     if (!selectedPost) return;
     try {
@@ -328,6 +399,9 @@ export default function ProfilePage() {
     }
   };
 
+  // -------------------------------
+  // Loading View
+  // -------------------------------
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -337,6 +411,9 @@ export default function ProfilePage() {
     );
   }
 
+  // -------------------------------
+  // Render Main Screen
+  // -------------------------------
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#4A00E0" translucent />
@@ -357,13 +434,12 @@ export default function ProfilePage() {
                     {profile?.displayName || profile?.username || "Guest"}
                   </Text>
                 </View>
-                <Image
-                  source={{ uri: profilePictureUrl }}
-                  style={styles.profileImage}
-                />
+                <Image source={{ uri: profilePictureUrl }} style={styles.profileImage} />
               </View>
 
-              <Text style={styles.bio}>{profile?.bio || "No bio available"}</Text>
+              <Text style={styles.bio}>
+                {profile?.bio || "No bio available"}
+              </Text>
 
               {profile?.interests && profile.interests.length > 0 && (
                 <View style={styles.interestsContainer}>
@@ -380,23 +456,17 @@ export default function ProfilePage() {
               {/* Profile Statistics */}
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}>
-                  <Text style={styles.profileStatNumber}>
-                    {getFollowersCount()}
-                  </Text>
+                  <Text style={styles.profileStatNumber}>{getFollowersCount()}</Text>
                   <Text style={styles.statLabel}>followers</Text>
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statItem}>
-                  <Text style={styles.profileStatNumber}>
-                    {getFollowingCount()}
-                  </Text>
+                  <Text style={styles.profileStatNumber}>{getFollowingCount()}</Text>
                   <Text style={styles.statLabel}>following</Text>
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statItem}>
-                  <Text style={styles.profileStatNumber}>
-                    {getPostsCount()}
-                  </Text>
+                  <Text style={styles.profileStatNumber}>{getPostsCount()}</Text>
                   <Text style={styles.statLabel}>Posts</Text>
                 </View>
               </View>
@@ -405,6 +475,9 @@ export default function ProfilePage() {
                 <Link href="/EditPage" style={styles.editProfileButton}>
                   <Text style={styles.editProfileText}>Edit profile</Text>
                 </Link>
+                <TouchableOpacity style={styles.khaltiButton} onPress={handleKhaltiPress}>
+                  <Text style={styles.khaltiButtonText}>Play with Khalti</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </LinearGradient>
@@ -440,7 +513,10 @@ export default function ProfilePage() {
               <TouchableOpacity style={styles.optionButton} onPress={handleDeletePost}>
                 <Text style={styles.optionText}>Delete Post</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.optionButton} onPress={() => setShowOptionsModal(false)}>
+              <TouchableOpacity
+                style={styles.optionButton}
+                onPress={() => setShowOptionsModal(false)}
+              >
                 <Text style={styles.optionText}>Cancel</Text>
               </TouchableOpacity>
             </View>
@@ -473,6 +549,8 @@ const styles = StyleSheet.create({
   actionButtons: { flexDirection: "row", gap: 10 },
   editProfileButton: { flex: 1, backgroundColor: "#fff", padding: 12, borderRadius: 8, alignItems: "center" },
   editProfileText: { color: "#4A00E0", fontWeight: "600", fontSize: 16, textAlign: "center" },
+  khaltiButton: { flex: 1, backgroundColor: "#5C2D91", padding: 12, borderRadius: 8, alignItems: "center" },
+  khaltiButtonText: { color: "#fff", fontWeight: "600", fontSize: 16, textAlign: "center" },
   backButton: { position: "absolute", top: 20, left: 20, zIndex: 2 },
   backArrow: { fontSize: 30, color: "#fff" },
   postCard: { margin: 10, borderRadius: 10, overflow: "hidden" },
@@ -489,6 +567,7 @@ const styles = StyleSheet.create({
   media: { width: "100%", aspectRatio: 1, borderRadius: 8, marginVertical: 8 },
   postStats: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#eee" },
   statButton: { flexDirection: "row", alignItems: "center" },
+  commentButton: { flexDirection: "row", alignItems: "center" },
   statText: { marginLeft: 5, fontSize: 14, color: "#666" },
   statNumberActive: { color: "#4A00E0" },
   timeStamp: { fontSize: 12, color: "#999", marginTop: 10 },
@@ -496,4 +575,6 @@ const styles = StyleSheet.create({
   optionsContainer: { backgroundColor: "#fff", padding: 20, borderRadius: 10, width: "80%" },
   optionButton: { paddingVertical: 10 },
   optionText: { fontSize: 16, color: "#000", textAlign: "center" },
+  noPosts: { padding: 20, alignItems: "center" },
+  noPostsText: { fontSize: 16, color: "#666" },
 });
