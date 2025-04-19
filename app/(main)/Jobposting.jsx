@@ -1,105 +1,66 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     StyleSheet,
     View,
     Text,
     SafeAreaView,
     FlatList,
-    Image,
     TouchableOpacity,
     StatusBar,
     TextInput,
     Modal,
     Clipboard,
-    Linking
+    Linking,
+    ScrollView,
+    ActivityIndicator
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import apiClient from '../../utils/axiosSetup';
+import API from '../../utils/api';
 
-// Your theme
 const THEME = {
-    primary: ["#4A00E0", "#8E2DE2"], // Profile gradient colors
+    primary: ["#4A00E0", "#8E2DE2"],
     secondary: ["#7A88FF", "#FD71AF"],
     optional: ["#FF8F71", "#FF3D77"],
 };
 
-// Mock data for job listings
-const jobListings = [
-    {
-        id: '1',
-        company: 'TechCorp',
-        logo: 'https://via.placeholder.com/50',
-        role: 'Senior React Native Developer',
-        location: 'San Francisco, CA',
-        type: 'Full-time',
-        salary: '$120k - $150k',
-        posted: '2 days ago',
-        description: 'Join our team to build innovative mobile applications using React Native...',
-        saved: false,
-        email: 'techcorp@gmail.com',
-    },
-    {
-        id: '2',
-        company: 'Design Studio',
-        logo: 'https://via.placeholder.com/50',
-        role: 'UI/UX Designer',
-        location: 'Remote',
-        type: 'Contract',
-        salary: '$80k - $100k',
-        posted: '1 week ago',
-        description: 'Looking for an experienced designer to create beautiful user interfaces...',
-        saved: true,
-        email: 'designstudio@gmail.com',
-    },
-    {
-        id: '3',
-        company: 'StartupXYZ',
-        logo: 'https://via.placeholder.com/50',
-        role: 'Full Stack Developer',
-        location: 'New York, NY',
-        type: 'Full-time',
-        salary: '$100k - $130k',
-        posted: '3 days ago',
-        description: 'Join our growing team to work on exciting projects with modern technologies...',
-        saved: false,
-        email: 'startupxyz@gmail.com',
-    },
-    {
-        id: '4',
-        company: 'Enterprise Solutions',
-        logo: 'https://via.placeholder.com/50',
-        role: 'Mobile Developer',
-        location: 'Chicago, IL',
-        type: 'Full-time',
-        salary: '$90k - $120k',
-        posted: 'Just now',
-        description: 'Looking for talented mobile developers to join our cross-platform team...',
-        saved: false,
-        email: 'enterprisesolutions@gmail.com',
-    },
-    {
-        id: '5',
-        company: 'Creative Agency',
-        logo: 'https://via.placeholder.com/50',
-        role: 'Product Designer',
-        location: 'Austin, TX',
-        type: 'Part-time',
-        salary: '$60k - $80k',
-        posted: '5 days ago',
-        description: 'Join our creative team to design beautiful products that users love...',
-        saved: true,
-        email: 'creativeagency@gmail.com',
-    },
-];
-
 const JobListingApp = () => {
-    const [jobs, setJobs] = useState(jobListings);
+    const [jobs, setJobs] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedJob, setSelectedJob] = useState(null);
+    const [currentJobDetails, setCurrentJobDetails] = useState(null);
+    const [searchTerm, setSearchTerm] = useState(''); // search state
 
-    const toggleSaveJob = (id) => {
-        setJobs(jobs.map(job =>
-            job.id === id ? { ...job, saved: !job.saved } : job
-        ));
+    // Fetch job list on mount
+    useEffect(() => {
+        const fetchJobs = async () => {
+            try {
+                const res = await apiClient.get(API.jobs.getAll());
+                // Map Mongo's _id to id for UI keys
+                const data = res.data.map(job => ({ ...job, id: job._id }));
+                setJobs(data);
+            } catch (err) {
+                console.error('Error fetching jobs:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchJobs();
+    }, []);
+
+    // Toggle "saved" on the backend, then update local state
+    const toggleSaveJob = async (id) => {
+        try {
+            const res = await apiClient.patch(API.jobs.toggleSave(id));
+            const updated = { ...res.data, id: res.data._id };
+            setJobs(jobs.map(job => job.id === id ? updated : job));
+            if (currentJobDetails?.id === id) {
+                setCurrentJobDetails(updated);
+            }
+        } catch (err) {
+            console.error('Error saving job:', err);
+        }
     };
 
     const handleApplyNow = (job) => {
@@ -109,7 +70,6 @@ const JobListingApp = () => {
 
     const copyToClipboard = (email) => {
         Clipboard.setString(email);
-        // You might want to show a toast message here
     };
 
     const openEmailClient = (email) => {
@@ -117,16 +77,29 @@ const JobListingApp = () => {
         setModalVisible(false);
     };
 
+    // Show details for this job
+    const viewJobDetails = (job) => {
+        setCurrentJobDetails(job);
+    };
+
+    // Go back to listing
+    const goBackToJobList = () => {
+        setCurrentJobDetails(null);
+    };
+
+    // derive filtered list based on searchTerm
+    const filteredJobs = jobs.filter(job => {
+        const lower = searchTerm.toLowerCase();
+        return (
+            job.company.toLowerCase().includes(lower) ||
+            job.role.toLowerCase().includes(lower)
+        );
+    });
+
     const EmailModal = () => {
         if (!selectedJob) return null;
-
         return (
-            <Modal
-                animationType="fade"
-                transparent={true}
-                visible={modalVisible}
-                onRequestClose={() => setModalVisible(false)}
-            >
+            <Modal animationType="fade" transparent visible={modalVisible}>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
@@ -135,7 +108,6 @@ const JobListingApp = () => {
                                 <Text style={styles.closeButton}>✕</Text>
                             </TouchableOpacity>
                         </View>
-
                         <View style={styles.emailContainer}>
                             <Text style={styles.emailText}>{selectedJob.email}</Text>
                             <TouchableOpacity
@@ -145,14 +117,14 @@ const JobListingApp = () => {
                                 <Text style={styles.copyButtonText}>Copy it</Text>
                             </TouchableOpacity>
                         </View>
-
                         <TouchableOpacity
                             style={styles.emailClientButton}
                             onPress={() => openEmailClient(selectedJob.email)}
                         >
-                            <Text style={styles.emailClientButtonText}>Open in default email client</Text>
+                            <Text style={styles.emailClientButtonText}>
+                                Open in email client
+                            </Text>
                         </TouchableOpacity>
-
                         <TouchableOpacity
                             style={styles.doneButton}
                             onPress={() => setModalVisible(false)}
@@ -165,10 +137,145 @@ const JobListingApp = () => {
         );
     };
 
+    const JobDetailScreen = () => {
+        if (!currentJobDetails) return null;
+        return (
+            <SafeAreaView style={styles.container}>
+                <StatusBar barStyle="light-content" />
+                <LinearGradient colors={THEME.primary} style={styles.detailsHeader}>
+                    <View style={styles.detailsHeaderContent}>
+                        <TouchableOpacity onPress={goBackToJobList}>
+                            <Text style={styles.backButtonText}>← Back</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => toggleSaveJob(currentJobDetails.id)}
+                        >
+                            <Text style={[
+                                styles.saveIcon,
+                                currentJobDetails.saved && styles.savedIcon
+                            ]}>
+                                {currentJobDetails.saved ? '★' : '☆'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </LinearGradient>
+                <ScrollView style={styles.detailsContent}>
+                    {/* Company info */}
+                    <View style={styles.detailsTopSection}>
+                        <View style={styles.companyInfo}>
+                            <Text style={styles.detailsCompanyName}>
+                                {currentJobDetails.company}
+                            </Text>
+                            <Text style={styles.detailsJobRole}>
+                                {currentJobDetails.role}
+                            </Text>
+                            <Text style={styles.detailsJobLocation}>
+                                {currentJobDetails.location}
+                            </Text>
+                        </View>
+                        <View style={styles.jobMetaDetails}>
+                            <View style={styles.metaTagLarge}>
+                                <Text style={styles.metaTextLarge}>
+                                    {currentJobDetails.type}
+                                </Text>
+                            </View>
+                            <View style={styles.metaTagLarge}>
+                                <Text style={styles.metaTextLarge}>
+                                    {currentJobDetails.salary}
+                                </Text>
+                            </View>
+                            <View style={styles.metaTagLarge}>
+                                <Text style={styles.metaTextLarge}>
+                                    Posted: {currentJobDetails.posted}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                    {/* Description, responsibilities, etc. */}
+                    <View style={styles.detailsSection}>
+                        <Text style={styles.sectionTitle}>Description</Text>
+                        <Text style={styles.sectionText}>
+                            {currentJobDetails.description}
+                        </Text>
+                    </View>
+                    <View style={styles.detailsSection}>
+                        <Text style={styles.sectionTitle}>Responsibilities</Text>
+                        {currentJobDetails.responsibilities.map((item, idx) => (
+                            <View key={idx} style={styles.bulletItem}>
+                                <Text style={styles.bulletPoint}>•</Text>
+                                <Text style={styles.bulletText}>{item}</Text>
+                            </View>
+                        ))}
+                    </View>
+                    <View style={styles.detailsSection}>
+                        <Text style={styles.sectionTitle}>Requirements</Text>
+                        {currentJobDetails.requirements.map((item, idx) => (
+                            <View key={idx} style={styles.bulletItem}>
+                                <Text style={styles.bulletPoint}>•</Text>
+                                <Text style={styles.bulletText}>{item}</Text>
+                            </View>
+                        ))}
+                    </View>
+                    <View style={styles.detailsSection}>
+                        <Text style={styles.sectionTitle}>Benefits</Text>
+                        {currentJobDetails.benefits.map((item, idx) => (
+                            <View key={idx} style={styles.bulletItem}>
+                                <Text style={styles.bulletPoint}>•</Text>
+                                <Text style={styles.bulletText}>{item}</Text>
+                            </View>
+                        ))}
+                    </View>
+
+                    {/* Email display section */}
+                    <View style={styles.detailsSection}>
+                        <Text style={styles.sectionTitle}>Apply via email</Text>
+                        <View style={styles.emailDisplayContainer}>
+                            <Text style={styles.emailDisplayText}>
+                                {currentJobDetails.email}
+                            </Text>
+                            <View style={styles.emailActionButtons}>
+                                <TouchableOpacity
+                                    style={styles.emailActionButton}
+                                    onPress={() => copyToClipboard(currentJobDetails.email)}
+                                >
+                                    <Text style={styles.emailActionButtonText}>
+                                        Copy Email
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.emailActionButton}
+                                    onPress={() => openEmailClient(currentJobDetails.email)}
+                                >
+                                    <Text style={styles.emailActionButtonText}>
+                                        Open Mail App
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+
+                    <TouchableOpacity
+                        style={styles.applyNowButton}
+                        onPress={() => openEmailClient(currentJobDetails.email)}
+                    >
+                        <LinearGradient
+                            colors={THEME.secondary}
+                            style={styles.applyNowButtonGradient}
+                        >
+                            <Text style={styles.applyNowButtonText}>Apply Now</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </ScrollView>
+            </SafeAreaView>
+        );
+    };
+
     const renderJobCard = ({ item }) => (
-        <TouchableOpacity style={styles.card}>
+        <TouchableOpacity
+            style={styles.card}
+            onPress={() => viewJobDetails(item)}
+        >
             <View style={styles.cardHeader}>
-                <Image source={{ uri: item.logo }} style={styles.companyLogo} />
                 <View style={styles.cardHeaderText}>
                     <Text style={styles.companyName}>{item.company}</Text>
                     <Text style={styles.jobRole}>{item.role}</Text>
@@ -180,7 +287,6 @@ const JobListingApp = () => {
                     </Text>
                 </TouchableOpacity>
             </View>
-
             <View style={styles.cardBody}>
                 <View style={styles.jobMeta}>
                     <View style={styles.metaTag}>
@@ -194,17 +300,17 @@ const JobListingApp = () => {
                     {item.description}
                 </Text>
             </View>
-
             <View style={styles.cardFooter}>
                 <Text style={styles.postedTime}>{item.posted}</Text>
                 <TouchableOpacity
                     style={styles.applyButton}
-                    onPress={() => handleApplyNow(item)}
+                    onPress={(e) => {
+                        e.stopPropagation();
+                        handleApplyNow(item);
+                    }}
                 >
                     <LinearGradient
                         colors={THEME.secondary}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
                         style={styles.applyButtonGradient}
                     >
                         <Text style={styles.applyButtonText}>Apply Now</Text>
@@ -214,73 +320,48 @@ const JobListingApp = () => {
         </TouchableOpacity>
     );
 
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <ActivityIndicator size="large" />
+            </SafeAreaView>
+        );
+    }
+
     return (
         <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="light-content" />
-
-            <LinearGradient
-                colors={THEME.primary}
-                style={styles.header}
-            >
-                <Text style={styles.headerTitle}>Job Finder</Text>
-                <View style={styles.searchBar}>
-                    <TextInput
-                        placeholder="Search for jobs..."
-                        placeholderTextColor="#8A8A8A"
-                        style={styles.searchInput}
+            {currentJobDetails ? (
+                <JobDetailScreen />
+            ) : (
+                <>
+                    <StatusBar barStyle="light-content" />
+                    <LinearGradient colors={THEME.primary} style={styles.header}>
+                        <Text style={styles.headerTitle}>Job Finder</Text>
+                        <View style={styles.searchBar}>
+                            <TextInput
+                                placeholder="Search for jobs..."
+                                placeholderTextColor="#8A8A8A"
+                                style={styles.searchInput}
+                                value={searchTerm}
+                                onChangeText={setSearchTerm}
+                            />
+                        </View>
+                    </LinearGradient>
+                    <FlatList
+                        data={filteredJobs}
+                        renderItem={renderJobCard}
+                        keyExtractor={item => item.id}
+                        contentContainerStyle={styles.listContainer}
+                        showsVerticalScrollIndicator={false}
                     />
-                </View>
-            </LinearGradient>
-
-            <View style={styles.filtersContainer}>
-                <ScrollableFilter options={['All Jobs', 'Remote', 'Full-time', 'Part-time', 'Contract']} />
-            </View>
-
-            <FlatList
-                data={jobs}
-                renderItem={renderJobCard}
-                keyExtractor={item => item.id}
-                contentContainerStyle={styles.listContainer}
-                showsVerticalScrollIndicator={false}
-            />
-
-            <EmailModal />
+                    <EmailModal />
+                </>
+            )}
         </SafeAreaView>
     );
 };
 
-// Scrollable filter component
-const ScrollableFilter = ({ options }) => {
-    const [selectedFilter, setSelectedFilter] = useState(options[0]);
-
-    return (
-        <FlatList
-            data={options}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(item) => item}
-            renderItem={({ item }) => (
-                <TouchableOpacity
-                    style={[
-                        styles.filterChip,
-                        selectedFilter === item && styles.filterChipSelected
-                    ]}
-                    onPress={() => setSelectedFilter(item)}
-                >
-                    <Text
-                        style={[
-                            styles.filterChipText,
-                            selectedFilter === item && styles.filterChipTextSelected
-                        ]}
-                    >
-                        {item}
-                    </Text>
-                </TouchableOpacity>
-            )}
-            contentContainerStyle={styles.filtersList}
-        />
-    );
-};
+export default JobListingApp;
 
 const styles = StyleSheet.create({
     container: {
@@ -353,15 +434,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 12,
-    },
-    companyLogo: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
+        justifyContent: 'space-between',
     },
     cardHeaderText: {
         flex: 1,
-        marginLeft: 12,
     },
     companyName: {
         fontSize: 14,
@@ -509,7 +585,164 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: 'bold',
         color: '#FFF',
-    }
-});
+    },
 
-export default JobListingApp;
+    // Job Details screen styles
+    detailsHeader: {
+        paddingTop: 20,
+        paddingBottom: 20,
+        paddingHorizontal: 16,
+    },
+    detailsHeaderContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    backButton: {
+        padding: 8,
+    },
+    backButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '500',
+    },
+    headerActions: {
+        flexDirection: 'row',
+    },
+    detailsContent: {
+        flex: 1,
+        paddingHorizontal: 16,
+    },
+    detailsTopSection: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 16,
+        marginTop: 16,
+        marginBottom: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+        elevation: 2,
+    },
+    companyInfo: {
+        marginBottom: 16,
+    },
+    detailsCompanyName: {
+        fontSize: 16,
+        color: '#666666',
+    },
+    detailsJobRole: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        color: '#333333',
+        marginTop: 4,
+    },
+    detailsJobLocation: {
+        fontSize: 16,
+        color: '#666666',
+        marginTop: 4,
+    },
+    jobMetaDetails: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+    },
+    metaTagLarge: {
+        backgroundColor: '#F0F2F5',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 6,
+        marginRight: 8,
+        marginBottom: 8,
+    },
+    metaTextLarge: {
+        fontSize: 14,
+        color: '#666666',
+    },
+    detailsSection: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+        elevation: 2,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333333',
+        marginBottom: 12,
+    },
+    sectionText: {
+        fontSize: 16,
+        color: '#666666',
+        lineHeight: 24,
+    },
+    bulletItem: {
+        flexDirection: 'row',
+        marginBottom: 8,
+    },
+    bulletPoint: {
+        fontSize: 16,
+        color: '#666666',
+        marginRight: 8,
+        marginTop: 2,
+    },
+    bulletText: {
+        flex: 1,
+        fontSize: 16,
+        color: '#666666',
+        lineHeight: 24,
+    },
+    emailDisplayContainer: {
+        backgroundColor: '#F0F2F5',
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 8,
+    },
+    emailDisplayText: {
+        fontSize: 18,
+        color: '#333333',
+        fontWeight: '500',
+        textAlign: 'center',
+        marginBottom: 10,
+    },
+    emailActionButtons: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        marginTop: 8,
+    },
+    emailActionButton: {
+        backgroundColor: '#FFFFFF',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    emailActionButtonText: {
+        fontSize: 14,
+        color: '#333333',
+        fontWeight: '500',
+    },
+    applyNowButton: {
+        borderRadius: 12,
+        overflow: 'hidden',
+        marginBottom: 32,
+    },
+    applyNowButtonGradient: {
+        paddingVertical: 16,
+        alignItems: 'center',
+    },
+    applyNowButtonText: {
+        color: '#FFFFFF',
+        fontWeight: 'bold',
+        fontSize: 18,
+    },
+});

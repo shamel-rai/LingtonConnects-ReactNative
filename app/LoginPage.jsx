@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useRef } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
   StyleSheet,
+  Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -27,6 +28,12 @@ const LoginPage = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Forgot password state
+  const [forgotPasswordModalVisible, setForgotPasswordModalVisible] = useState(false);
+  const [email, setEmail] = useState("");
+  const [isResetLoading, setIsResetLoading] = useState(false);
+  const emailInputRef = useRef(null);
 
   // Validate inputs
   const validateInputs = () => {
@@ -70,6 +77,48 @@ const LoginPage = () => {
       Alert.alert("Login Failed", errorMessage);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Handle forgot password
+  const handleForgotPassword = () => {
+    setForgotPasswordModalVisible(true);
+    setTimeout(() => {
+      emailInputRef.current?.focus();
+    }, 100);
+  };
+
+  // Handle password reset request
+  const handlePasswordReset = async () => {
+    // Validate email
+    if (!email.trim() || !email.includes('@')) {
+      Alert.alert("Invalid Email", "Please enter a valid email address");
+      return;
+    }
+
+    setIsResetLoading(true);
+    try {
+      // Assuming your API has a password reset endpoint
+      const response = await axios.post(API.authentication.resetPassword?.() || '/reset-password', {
+        email: email.trim(),
+      });
+
+      if (response.status === 200) {
+        Alert.alert(
+          "Reset Email Sent",
+          "If an account exists with this email, you will receive password reset instructions."
+        );
+        setForgotPasswordModalVisible(false);
+        setEmail("");
+      }
+    } catch (error) {
+      // For security reasons, don't reveal if the email exists or not
+      Alert.alert(
+        "Reset Email Sent",
+        "If an account exists with this email, you will receive password reset instructions."
+      );
+    } finally {
+      setIsResetLoading(false);
     }
   };
 
@@ -135,7 +184,7 @@ const LoginPage = () => {
 
               <TouchableOpacity
                 style={styles.forgotPassword}
-                onPress={() => router.push("/forgot-password")}
+                onPress={handleForgotPassword}
               >
                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
               </TouchableOpacity>
@@ -164,6 +213,60 @@ const LoginPage = () => {
             </View>
           </Pressable>
         </KeyboardAvoidingView>
+
+        {/* Forgot Password Modal */}
+        <Modal
+          visible={forgotPasswordModalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setForgotPasswordModalVisible(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => {
+                  setForgotPasswordModalVisible(false);
+                  setEmail("");
+                }}
+              >
+                <Feather name="x" size={24} color="#333" />
+              </TouchableOpacity>
+
+              <Text style={styles.modalTitle}>Reset Password</Text>
+              <Text style={styles.modalSubtitle}>
+                Enter your email address and we'll send you instructions to reset your password.
+              </Text>
+
+              <View style={styles.modalInputContainer}>
+                <Feather name="mail" size={20} color="#666" />
+                <TextInput
+                  ref={emailInputRef}
+                  style={styles.modalInput}
+                  placeholder="Email Address"
+                  placeholderTextColor="#999"
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoCompleteType="email"
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.resetButton}
+                onPress={handlePasswordReset}
+                disabled={isResetLoading}
+              >
+                {isResetLoading ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text style={styles.resetButtonText}>Send Reset Link</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </LinearGradient>
     </SafeAreaView>
   );
@@ -238,6 +341,76 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     textDecorationLine: "underline",
+  },
+
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 25,
+    width: "100%",
+    maxWidth: 400,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  closeButton: {
+    position: "absolute",
+    top: 15,
+    right: 15,
+    padding: 5,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#4A00E0",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 25,
+  },
+  modalInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
+    borderRadius: 12,
+    marginBottom: 25,
+    paddingHorizontal: 15,
+    height: 55,
+    width: "100%",
+  },
+  modalInput: {
+    flex: 1,
+    color: "#333",
+    marginLeft: 10,
+    fontSize: 16,
+  },
+  resetButton: {
+    backgroundColor: "#4A00E0",
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 25,
+    width: "100%",
+    alignItems: "center",
+  },
+  resetButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
 

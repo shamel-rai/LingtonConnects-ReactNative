@@ -64,7 +64,14 @@ const API = {
   khalti: {
     initiate: () => `${BASE_URL}/initiate`,
     return: () => `${BASE_URL}/khalti-return`,
-  }
+  },
+  jobs: {
+    getAll: () => `${BASE_URL}/jobs`,
+    getById: (id) => `${BASE_URL}/jobs/${id}`,
+    create: () => `${BASE_URL}/jobs`,
+    toggleSave: (id) => `${BASE_URL}/jobs/${id}/save`,
+    delete: (id) => `${BASE_URL}/jobs/${id}`,
+  },
 };
 
 module.exports = API;
