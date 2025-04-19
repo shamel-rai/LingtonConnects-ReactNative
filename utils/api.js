@@ -28,6 +28,8 @@ const API = {
     login: () => `${BASE_URL}/login`,
     logout: () => `${BASE_URL}/auth/logout`,
     signup: () => `${BASE_URL}/signup`,
+    forgotPassword: () => `${BASE_URL}/forgot-password`,
+    resetPassword: () => `${BASE_URL}/reset-password`,
   },
   Roadmap: {
     getAll: () => `${BASE_URL}/roadmaps/all`,
