@@ -8,7 +8,10 @@ import {
     Image,
     TouchableOpacity,
     StatusBar,
-    TextInput
+    TextInput,
+    Modal,
+    Clipboard,
+    Linking
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -32,6 +35,7 @@ const jobListings = [
         posted: '2 days ago',
         description: 'Join our team to build innovative mobile applications using React Native...',
         saved: false,
+        email: 'techcorp@gmail.com',
     },
     {
         id: '2',
@@ -44,6 +48,7 @@ const jobListings = [
         posted: '1 week ago',
         description: 'Looking for an experienced designer to create beautiful user interfaces...',
         saved: true,
+        email: 'designstudio@gmail.com',
     },
     {
         id: '3',
@@ -56,6 +61,7 @@ const jobListings = [
         posted: '3 days ago',
         description: 'Join our growing team to work on exciting projects with modern technologies...',
         saved: false,
+        email: 'startupxyz@gmail.com',
     },
     {
         id: '4',
@@ -68,6 +74,7 @@ const jobListings = [
         posted: 'Just now',
         description: 'Looking for talented mobile developers to join our cross-platform team...',
         saved: false,
+        email: 'enterprisesolutions@gmail.com',
     },
     {
         id: '5',
@@ -80,16 +87,82 @@ const jobListings = [
         posted: '5 days ago',
         description: 'Join our creative team to design beautiful products that users love...',
         saved: true,
+        email: 'creativeagency@gmail.com',
     },
 ];
 
 const JobListingApp = () => {
     const [jobs, setJobs] = useState(jobListings);
+    const [modalVisible, setModalVisible] = useState(false);
+    const [selectedJob, setSelectedJob] = useState(null);
 
     const toggleSaveJob = (id) => {
         setJobs(jobs.map(job =>
             job.id === id ? { ...job, saved: !job.saved } : job
         ));
+    };
+
+    const handleApplyNow = (job) => {
+        setSelectedJob(job);
+        setModalVisible(true);
+    };
+
+    const copyToClipboard = (email) => {
+        Clipboard.setString(email);
+        // You might want to show a toast message here
+    };
+
+    const openEmailClient = (email) => {
+        Linking.openURL(`mailto:${email}`);
+        setModalVisible(false);
+    };
+
+    const EmailModal = () => {
+        if (!selectedJob) return null;
+
+        return (
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={modalVisible}
+                onRequestClose={() => setModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Apply via email</Text>
+                            <TouchableOpacity onPress={() => setModalVisible(false)}>
+                                <Text style={styles.closeButton}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.emailContainer}>
+                            <Text style={styles.emailText}>{selectedJob.email}</Text>
+                            <TouchableOpacity
+                                style={styles.copyButton}
+                                onPress={() => copyToClipboard(selectedJob.email)}
+                            >
+                                <Text style={styles.copyButtonText}>Copy it</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                            style={styles.emailClientButton}
+                            onPress={() => openEmailClient(selectedJob.email)}
+                        >
+                            <Text style={styles.emailClientButtonText}>Open in default email client</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.doneButton}
+                            onPress={() => setModalVisible(false)}
+                        >
+                            <Text style={styles.doneButtonText}>Done</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+        );
     };
 
     const renderJobCard = ({ item }) => (
@@ -124,7 +197,10 @@ const JobListingApp = () => {
 
             <View style={styles.cardFooter}>
                 <Text style={styles.postedTime}>{item.posted}</Text>
-                <TouchableOpacity style={styles.applyButton}>
+                <TouchableOpacity
+                    style={styles.applyButton}
+                    onPress={() => handleApplyNow(item)}
+                >
                     <LinearGradient
                         colors={THEME.secondary}
                         start={{ x: 0, y: 0 }}
@@ -167,6 +243,8 @@ const JobListingApp = () => {
                 contentContainerStyle={styles.listContainer}
                 showsVerticalScrollIndicator={false}
             />
+
+            <EmailModal />
         </SafeAreaView>
     );
 };
@@ -352,6 +430,85 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontWeight: '500',
         fontSize: 14,
+    },
+    // Modal styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        width: '80%',
+        backgroundColor: 'white',
+        borderRadius: 10,
+        padding: 20,
+        alignItems: 'center',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        width: '100%',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333',
+    },
+    closeButton: {
+        fontSize: 20,
+        color: '#999',
+    },
+    emailContainer: {
+        flexDirection: 'row',
+        width: '100%',
+        backgroundColor: '#F5F7FA',
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 16,
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    emailText: {
+        flex: 1,
+        fontSize: 16,
+        color: '#333',
+    },
+    copyButton: {
+        backgroundColor: '#F5F7FA',
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderRadius: 4,
+    },
+    copyButtonText: {
+        fontSize: 14,
+        color: '#666',
+    },
+    emailClientButton: {
+        width: '100%',
+        backgroundColor: '#F5F7FA',
+        borderRadius: 8,
+        padding: 16,
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    emailClientButtonText: {
+        fontSize: 16,
+        color: '#333',
+    },
+    doneButton: {
+        width: '100%',
+        backgroundColor: '#FF3D77',
+        borderRadius: 8,
+        padding: 16,
+        alignItems: 'center',
+    },
+    doneButtonText: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#FFF',
     }
 });
 
