@@ -479,13 +479,9 @@ const HomePage = () => {
                   <Feather name="briefcase" size={24} color="white" />
                   <Text style={styles.menuItemText}>Job posting</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.menuItem} onPress={() => navigateAndCloseSidebar("/SearchProfileScreen")}>
-                  <Feather name="search" size={24} color="white" />
-                  <Text style={styles.menuItemText}>Search</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.menuItem} onPress={() => navigateAndCloseSidebar("/AboutPage")}>
-                  <Feather name="info" size={24} color="white" />
-                  <Text style={styles.menuItemText}>About</Text>
+                <TouchableOpacity style={styles.menuItem} onPress={() => navigateAndCloseSidebar("/MentorMatchingScreen")}>
+                  <Feather name="user" size={24} color="white" />
+                  <Text style={styles.menuItemText}>Find Mentor</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.menuItem} onPress={logout}>
                   <Feather name="log-out" size={24} color="white" />

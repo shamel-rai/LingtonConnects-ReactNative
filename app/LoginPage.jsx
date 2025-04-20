@@ -14,7 +14,6 @@ import API from "../utils/api";
 import { AuthContext } from "../Context/AuthContext";
 
 const LoginPage = () => {
-  /* ───────── normal login ───────── */
   const router = useRouter();
   const { login } = useContext(AuthContext);
 
@@ -23,9 +22,8 @@ const LoginPage = () => {
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  /* ───── forgot‑password modal state ───── */
   const [modalOpen, setModalOpen] = useState(false);
-  const [step, setStep] = useState(1);   // 1 = username • 2 = code+pwd
+  const [step, setStep] = useState(1);
   const [resetUser, setResetUser] = useState("");
   const [serverCode, setServerCode] = useState("");
   const [code, setCode] = useState("");
@@ -34,11 +32,9 @@ const LoginPage = () => {
   const [busy, setBusy] = useState(false);
   const userInputRef = useRef(null);
 
-  /* ───────── helpers ───────── */
   const validLogin = () =>
     username.trim() && password.length >= 8;
 
-  /* ───────── login handler ───────── */
   const handleLogin = async () => {
     if (!validLogin()) {
       Alert.alert("Error", "Enter username and a password ≥ 8 characters");
@@ -79,7 +75,7 @@ const LoginPage = () => {
         { username: resetUser }
       );
       setServerCode(data.resetCode);
-      setCode(data.resetCode);          // pre‑fill for convenience
+      setCode(data.resetCode);
       setStep(2);
     } catch (err) {
       Alert.alert("Error", err.response?.data?.message ?? "Server error");

@@ -74,6 +74,12 @@ const API = {
     toggleSave: (id) => `${BASE_URL}/jobs/${id}/save`,
     delete: (id) => `${BASE_URL}/jobs/${id}`,
   },
+  mentors: {
+    getAll: () => `${BASE_URL}/mentors`,
+    create: () => `${BASE_URL}/mentors`,
+    update: id => `${BASE_URL}/mentors/${id}`,
+    delete: id => `${BASE_URL}/mentors/${id}`
+  },
 };
 
 module.exports = API;
